@@ -7,19 +7,25 @@ import {
   FileText, 
   Settings, 
   Plus,
-  ChevronDown
+  ChevronDown,
+  LogOut
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
-const Sidebar = () => {
-  const [activeItem, setActiveItem] = useState("dashboard");
+interface SidebarProps {
+  activeItem: string;
+  onNavigate: (view: 'dashboard' | 'campaigns' | 'contacts') => void;
+}
+
+const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
+  const { user, signOut } = useAuth();
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "campaigns", label: "Campaigns", icon: Mail },
-    { id: "templates", label: "Templates", icon: FileText },
-    { id: "lists", label: "Contact Lists", icon: Users },
+    { id: "contacts", label: "Contact Lists", icon: Users },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -42,15 +48,17 @@ const Sidebar = () => {
         <Card className="p-3 cursor-pointer hover:shadow-card transition-smooth" 
               onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-xs font-semibold text-primary-foreground">JD</span>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-xs font-semibold text-primary-foreground">
+                    {user?.email?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  <div className="font-medium">{user?.email}</div>
+                  <div className="text-muted-foreground text-xs">Connected</div>
+                </div>
               </div>
-              <div className="text-sm">
-                <div className="font-medium">john@company.com</div>
-                <div className="text-muted-foreground text-xs">Connected</div>
-              </div>
-            </div>
             <ChevronDown className={`w-4 h-4 transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`} />
           </div>
         </Card>
@@ -70,7 +78,7 @@ const Sidebar = () => {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveItem(item.id)}
+              onClick={() => onNavigate(item.id as 'dashboard' | 'campaigns' | 'contacts')}
               className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-smooth ${
                 activeItem === item.id
                   ? "bg-primary text-primary-foreground shadow-card"
@@ -81,6 +89,14 @@ const Sidebar = () => {
               {item.label}
             </button>
           ))}
+          
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-smooth text-muted-foreground hover:text-foreground hover:bg-accent mt-4"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
       </nav>
 

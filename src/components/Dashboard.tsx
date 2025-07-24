@@ -12,7 +12,11 @@ import {
   Reply
 } from "lucide-react";
 
-const Dashboard = () => {
+interface DashboardProps {
+  onNavigate: (view: 'campaigns' | 'contacts') => void;
+}
+
+const Dashboard = ({ onNavigate }: DashboardProps) => {
   const statsCards = [
     {
       title: "Total Sent",
@@ -99,7 +103,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back! Here's your email campaign overview.</p>
         </div>
-        <Button variant="hero" size="lg">
+        <Button variant="hero" size="lg" onClick={() => onNavigate('campaigns')}>
           <Plus className="w-4 h-4" />
           New Campaign
         </Button>
