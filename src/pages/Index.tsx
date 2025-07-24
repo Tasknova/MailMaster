@@ -1,12 +1,33 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import HeroSection from "@/components/HeroSection";
+import Dashboard from "@/components/Dashboard";
+import Sidebar from "@/components/Sidebar";
+import { useState } from "react";
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+  const [showApp, setShowApp] = useState(false);
+
+  if (!showApp) {
+    return (
+      <div className="min-h-screen">
+        <HeroSection />
+        <div className="fixed bottom-8 right-8">
+          <button
+            onClick={() => setShowApp(true)}
+            className="bg-gradient-primary text-white px-6 py-3 rounded-full shadow-elegant hover:shadow-glow transition-smooth font-medium"
+          >
+            View App Dashboard →
+          </button>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 overflow-auto">
+        <Dashboard />
+      </main>
     </div>
   );
 };
