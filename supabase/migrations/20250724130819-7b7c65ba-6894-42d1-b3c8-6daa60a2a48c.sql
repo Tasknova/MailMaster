@@ -50,3 +50,85 @@ BEGIN
   RETURN NULL;
 END;
 $$;
+
+-- Create functions for campaign statistics updates
+CREATE OR REPLACE FUNCTION increment_campaign_opens(campaign_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE campaigns 
+  SET total_opened = total_opened + 1 
+  WHERE id = campaign_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION increment_campaign_clicks(campaign_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE campaigns 
+  SET total_clicked = total_clicked + 1 
+  WHERE id = campaign_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create function to update campaign statistics from campaign_sends
+CREATE OR REPLACE FUNCTION update_campaign_stats(campaign_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE campaigns 
+  SET 
+    total_sent = (
+      SELECT COUNT(*) 
+      FROM campaign_sends 
+      WHERE campaign_sends.campaign_id = campaigns.id 
+      AND status = 'sent'
+    ),
+    total_delivered = (
+      SELECT COUNT(*) 
+      FROM campaign_sends 
+      WHERE campaign_sends.campaign_id = campaigns.id 
+      AND status = 'sent'
+    ),
+    total_bounced = (
+      SELECT COUNT(*) 
+      FROM campaign_sends 
+      WHERE campaign_sends.campaign_id = campaigns.id 
+      AND status = 'failed'
+    ),
+    total_opened = (
+      SELECT COUNT(*) 
+      FROM campaign_sends 
+      WHERE campaign_sends.campaign_id = campaigns.id 
+      AND opened_at IS NOT NULL
+    ),
+    total_clicked = (
+      SELECT COUNT(*) 
+      FROM campaign_sends 
+      WHERE campaign_sends.campaign_id = campaigns.id 
+      AND clicked_at IS NOT NULL
+    )
+  WHERE id = campaign_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to update campaign stats when campaign_sends change
+CREATE OR REPLACE FUNCTION trigger_update_campaign_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM update_campaign_stats(NEW.campaign_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'UPDATE' THEN
+    PERFORM update_campaign_stats(NEW.campaign_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM update_campaign_stats(OLD.campaign_id);
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_campaign_stats_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON campaign_sends
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_update_campaign_stats();

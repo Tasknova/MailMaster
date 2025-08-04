@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Mail, Users, Eye, MousePointer, Calendar, Plus } from 'lucide-react';
+import { 
+  Mail, 
+  Users, 
+  Eye, 
+  MousePointer, 
+  Calendar,
+  Plus,
+  ArrowRight
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { toast } from '@/hooks/use-toast';
+import { getStatusColor } from '@/lib/theme';
 
 interface Campaign {
   id: string;
@@ -22,18 +29,16 @@ interface Campaign {
 
 interface CampaignListProps {
   onCreateCampaign: () => void;
+  onViewCampaign: (campaign: Campaign) => void;
 }
 
-const CampaignList = ({ onCreateCampaign }: CampaignListProps) => {
-  const { user } = useAuth();
+const CampaignList = ({ onCreateCampaign, onViewCampaign }: CampaignListProps) => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchCampaigns();
-    }
-  }, [user]);
+    fetchCampaigns();
+  }, []);
 
   const fetchCampaigns = async () => {
     try {
@@ -42,33 +47,15 @@ const CampaignList = ({ onCreateCampaign }: CampaignListProps) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setCampaigns(data || []);
+      if (error) {
+        console.error('Error fetching campaigns:', error);
+      } else {
+        setCampaigns(data || []);
+      }
     } catch (error) {
-      toast({
-        title: "Error fetching campaigns",
-        description: error instanceof Error ? error.message : "Failed to load campaigns",
-        variant: "destructive",
-      });
+      console.error('Error fetching campaigns:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'sending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'failed':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
     }
   };
 
@@ -191,7 +178,7 @@ const CampaignList = ({ onCreateCampaign }: CampaignListProps) => {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => onViewCampaign(campaign)}>
                       View Details
                     </Button>
                     {campaign.status === 'draft' && (

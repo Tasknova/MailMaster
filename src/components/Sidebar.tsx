@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface SidebarProps {
   activeItem: string;
-  onNavigate: (view: 'dashboard' | 'campaigns' | 'contacts') => void;
+  onNavigate: (view: 'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'settings' | 'templates') => void;
 }
 
 const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
@@ -25,6 +25,7 @@ const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "campaigns", label: "Campaigns", icon: Mail },
+    { id: "templates", label: "Templates", icon: FileText },
     { id: "contacts", label: "Contact Lists", icon: Users },
     { id: "settings", label: "Settings", icon: Settings },
   ];
@@ -66,7 +67,12 @@ const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
 
       {/* Create Campaign Button */}
       <div className="p-4">
-        <Button variant="hero" size="lg" className="w-full">
+        <Button 
+          variant="hero" 
+          size="lg" 
+          className="w-full"
+          onClick={() => onNavigate('campaign-builder')}
+        >
           <Plus className="w-4 h-4" />
           Create Campaign
         </Button>
@@ -78,7 +84,7 @@ const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id as 'dashboard' | 'campaigns' | 'contacts')}
+              onClick={() => onNavigate(item.id as 'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'settings' | 'templates')}
               className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-smooth ${
                 activeItem === item.id
                   ? "bg-primary text-primary-foreground shadow-card"

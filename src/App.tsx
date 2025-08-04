@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import LandingPage from "./components/LandingPage";
+import GmailCallback from "./pages/GmailCallback";
 
 const queryClient = new QueryClient();
 
@@ -18,8 +20,10 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/dashboard" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/gmail-callback" element={<GmailCallback />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
