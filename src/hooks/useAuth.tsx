@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<{ error: any }>;
+  signUpWithGoogle: () => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,6 +81,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         redirectTo: 'http://localhost:8080/dashboard',
         queryParams: {
           access_type: 'offline',
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
+        }
+      }
+    });
+    
+    return { error };
+  };
+
+  const signUpWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'http://localhost:8080/dashboard',
+        queryParams: {
+          access_type: 'offline',
           prompt: 'consent',
           scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
         }
@@ -95,7 +111,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signUp,
     signIn,
     signOut,
-    signInWithGoogle
+    signInWithGoogle,
+    signUpWithGoogle
   };
 
   return (

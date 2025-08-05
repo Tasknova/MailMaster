@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import GmailService from '@/services/gmailService';
+import { supabase } from '@/integrations/supabase/client';
 
 const GmailCallback = () => {
   const [searchParams] = useSearchParams();
@@ -18,8 +19,6 @@ const GmailCallback = () => {
 
   const handleCallback = async () => {
     try {
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
       const error = searchParams.get('error');
 
       if (error) {
@@ -28,29 +27,19 @@ const GmailCallback = () => {
         return;
       }
 
-      if (!code || !state) {
+      // Get the current session to check if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         setStatus('error');
-        setErrorMessage('Missing authorization code or state parameter');
+        setErrorMessage('No active session found. Please sign in again.');
         return;
       }
 
-      // Create a temporary Gmail service to handle the callback
-      // The actual credentials will be loaded from the database
-      const tempService = new GmailService({
-        clientId: 'temp',
-        clientSecret: 'temp'
-      });
-
-      // Load the actual credentials from database
-      const hasCredentials = await tempService.loadCredentials();
-      if (!hasCredentials) {
-        setStatus('error');
-        setErrorMessage('Gmail credentials not found. Please configure Gmail API settings first.');
-        return;
-      }
+      // Create a Gmail service to handle the callback
+      const gmailService = new GmailService();
 
       // Handle the OAuth callback
-      await tempService.handleCallback(code, state);
+      await gmailService.handleCallback();
 
       setStatus('success');
       toast({

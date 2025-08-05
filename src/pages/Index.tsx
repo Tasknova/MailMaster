@@ -9,15 +9,17 @@ import ContactManager from '@/components/contacts/ContactManager';
 import ContactDetails from '@/components/contacts/ContactDetails';
 import Settings from '@/components/settings/Settings';
 import TemplateManager from "@/components/templates/TemplateManager";
+import TestFullWidth from "@/components/TestFullWidth";
+import DebugWidth from "@/components/DebugWidth";
 import { useAuth } from "@/hooks/useAuth";
-import AuthCallback from './AuthCallback';
+
 import Login from './Login';
 import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const { user, loading } = useAuth();
   const [searchParams] = useSearchParams();
-  const [currentView, setCurrentView] = useState<'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'settings' | 'templates' | 'auth-callback'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'settings' | 'templates' | 'test-width' | 'debug-width'>('debug-width');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [selectedContactListId, setSelectedContactListId] = useState<string>('');
   const [selectedContactId, setSelectedContactId] = useState<string>('');
@@ -133,22 +135,37 @@ const Index = () => {
         return <TemplateManager key={`templates-${Date.now()}`} />;
       case 'settings':
         return <Settings />;
-      case 'auth-callback':
-        return <AuthCallback />;
+      case 'test-width':
+        return <TestFullWidth onBack={() => setCurrentView('dashboard')} />;
+      case 'debug-width':
+        return <DebugWidth onBack={() => setCurrentView('dashboard')} />;
+
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f9fafb' }}>
       <Sidebar 
         currentView={currentView} 
         onNavigate={setCurrentView}
         user={user}
       />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">
+      <main style={{ 
+        flex: '1', 
+        overflow: 'auto', 
+        minWidth: '0',
+        width: '100%',
+        maxWidth: 'none'
+      }}>
+        <div style={{ 
+          padding: '1.5rem', 
+          width: '100%',
+          height: '100%',
+          maxWidth: 'none',
+          boxSizing: 'border-box'
+        }}>
           {renderContent()}
         </div>
       </main>

@@ -112,7 +112,32 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Utility classes to ensure full width */
+@layer utilities {
+  .full-width-layout {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  .full-width-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
   }
 }

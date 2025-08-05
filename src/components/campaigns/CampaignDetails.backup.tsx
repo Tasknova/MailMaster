@@ -139,9 +139,8 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 'none' }}>
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+    <div className="space-y-6 full-width-container">
+      <div className="flex items-center gap-4">
         <Button variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
@@ -152,14 +151,14 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
       </div>
 
       {/* Campaign Status */}
-      <Card style={{ width: '100%', maxWidth: 'none', marginBottom: '1.5rem' }}>
+      <Card className="w-full max-w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {getStatusIcon(campaign.status)}
             Campaign Status
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="w-full">
           <div className="flex items-center justify-between">
             <div>
               <Badge className={getStatusColor(campaign.status)}>
@@ -181,14 +180,13 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
         </CardContent>
       </Card>
 
-      {/* Campaign Information Grid */}
-      <div style={{ display: 'flex', gap: '1.5rem', width: '100%', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        {/* Campaign Information */}
-        <Card style={{ flex: '1', minWidth: '300px', maxWidth: 'none' }}>
+      {/* Campaign Details */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-full">
+        <Card className="w-full max-w-full">
           <CardHeader>
             <CardTitle>Campaign Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 w-full">
             <div>
               <Label className="text-sm font-medium">From</Label>
               <p className="text-sm text-muted-foreground">
@@ -208,12 +206,11 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
-        <Card style={{ flex: '1', minWidth: '300px', maxWidth: 'none' }}>
+        <Card className="w-full max-w-full">
           <CardHeader>
             <CardTitle>Quick Stats</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="w-full">
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">{campaign.total_recipients}</div>
@@ -237,14 +234,14 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
       </div>
 
       {/* Detailed Analytics */}
-      <Card style={{ width: '100%', maxWidth: 'none', marginBottom: '1.5rem' }}>
+      <Card className="w-full max-w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5" />
             Detailed Analytics
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 w-full">
           {/* Delivery Stats */}
           <div>
             <h4 className="font-semibold mb-3">Delivery Statistics</h4>
@@ -322,21 +319,13 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
       </Card>
 
       {/* Email Preview */}
-      <Card style={{ width: '100%', maxWidth: 'none' }}>
+      <Card className="w-full max-w-full">
         <CardHeader>
           <CardTitle>Email Preview</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="w-full">
           <div 
-            style={{ 
-              border: '1px solid hsl(var(--border))', 
-              borderRadius: '0.5rem', 
-              padding: '1rem', 
-              backgroundColor: 'white', 
-              overflow: 'auto',
-              width: '100%',
-              minHeight: '400px'
-            }}
+            className="border rounded-lg p-4 bg-white overflow-auto w-full"
             dangerouslySetInnerHTML={{ __html: campaign.html_content }}
           />
         </CardContent>
@@ -345,4 +334,4 @@ const CampaignDetails = ({ campaignId, onBack }: CampaignDetailsProps) => {
   );
 };
 
-export default CampaignDetails;
+export default CampaignDetails; 

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 
 const Auth = () => {
-  const { user, signIn, signUp, loading, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, loading, signInWithGoogle, signUpWithGoogle } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
@@ -183,7 +183,7 @@ const Auth = () => {
                 type="button"
                 className="w-full flex items-center justify-center gap-2"
                 variant="outline"
-                onClick={signInWithGoogle}
+                onClick={isLogin ? signInWithGoogle : signUpWithGoogle}
                 disabled={submitting}
               >
                 <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">

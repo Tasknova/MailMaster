@@ -1,10 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 
-interface GmailConfig {
-  clientId: string;
-  clientSecret: string;
-}
-
 interface EmailData {
   to: string[];
   subject: string;
@@ -16,8 +11,6 @@ interface EmailData {
 interface GmailCredentials {
   id: string;
   user_id: string;
-  client_id: string;
-  client_secret: string;
   access_token?: string;
   refresh_token?: string;
   token_expires_at?: string;
@@ -25,24 +18,88 @@ interface GmailCredentials {
 }
 
 class GmailService {
-  private clientId: string;
-  private clientSecret: string;
-  private redirectUri: string;
-  private credentialsId: string | null = null;
+  // Single Google Cloud Console credentials for the entire SaaS application
+  private static readonly CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  private static readonly CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+  private static readonly REDIRECT_URI = `${window.location.origin}/gmail-callback`;
 
-  constructor(config: GmailConfig) {
-    this.clientId = config.clientId;
-    this.clientSecret = config.clientSecret;
-    // Set the callback URL automatically - this should match what we configure in Google Cloud Console
-    this.redirectUri = `${window.location.origin}/gmail-callback`;
+  // Initialize OAuth2 flow with Gmail scope
+  public async authenticate(): Promise<void> {
+    // Check if user already has Gmail permissions in their session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session?.provider_token) {
+      // User already has a Google session, check if it has Gmail scopes
+      try {
+        const tokenParts = session.provider_token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const scope = payload.scope || '';
+          
+          if (scope.includes('https://www.googleapis.com/auth/gmail.send') || 
+              scope.includes('https://www.googleapis.com/auth/gmail.compose')) {
+            // User already has Gmail permissions, just save the token
+            await this.saveTokens(session.provider_token, undefined, undefined);
+            return;
+          }
+        }
+      } catch (e) {
+        console.log('Error checking existing token scopes:', e);
+      }
+    }
+
+    // If no Gmail permissions, request them with consent prompt
+    await this.requestGmailPermissions();
   }
 
-  // Save credentials to database
-  public async saveCredentials(): Promise<void> {
+  // Request Gmail permissions specifically (with consent prompt)
+  public async requestGmailPermissions(): Promise<void> {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: GmailService.REDIRECT_URI,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose'
+        }
+      }
+    });
+
+    if (error) {
+      throw new Error(`OAuth error: ${error.message}`);
+    }
+  }
+
+  // Handle OAuth callback - this will be called after Supabase processes the OAuth
+  public async handleCallback(): Promise<void> {
+    // Get the current session which should now have the provider token
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.provider_token) {
+      throw new Error('No provider token found in session');
+    }
+
+    // Extract access token from the provider token
+    const accessToken = session.provider_token;
+    
+    // For Gmail API, we need to exchange the provider token for a Gmail-specific token
+    // or use the provider token directly if it has the right scopes
+    await this.saveTokens(accessToken, undefined, undefined);
+  }
+
+
+
+  // Save tokens to database
+  private async saveTokens(accessToken: string, refreshToken?: string, expiresIn?: number): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('User not authenticated');
     }
+
+    const tokenExpiresAt = expiresIn 
+      ? new Date(Date.now() + expiresIn * 1000).toISOString()
+      : null;
 
     // Check if credentials already exist
     const { data: existing } = await supabase
@@ -57,133 +114,32 @@ class GmailService {
       const { error } = await supabase
         .from('gmail_credentials')
         .update({
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token_expires_at: tokenExpiresAt,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id);
 
       if (error) throw error;
-      this.credentialsId = existing.id;
     } else {
       // Insert new credentials
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('gmail_credentials')
         .insert({
           user_id: user.id,
-          client_id: this.clientId,
-          client_secret: this.clientSecret
-        })
-        .select('id')
-        .single();
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token_expires_at: tokenExpiresAt,
+          is_active: true
+        });
 
       if (error) throw error;
-      this.credentialsId = data.id;
     }
-  }
-
-  // Load credentials from database
-  public async loadCredentials(): Promise<boolean> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    const { data, error } = await supabase
-      .from('gmail_credentials')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data) return false;
-
-    this.clientId = data.client_id;
-    this.clientSecret = data.client_secret;
-    this.credentialsId = data.id;
-    return true;
-  }
-
-  // Initialize OAuth2 flow
-  public async authenticate(): Promise<void> {
-    // Use Supabase OAuth with Gmail scope
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/gmail-callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
-        }
-      }
-    });
-
-    if (error) {
-      throw new Error(`OAuth error: ${error.message}`);
-    }
-  }
-
-  // Handle OAuth callback
-  public async handleCallback(code: string, state: string): Promise<void> {
-    // Verify state parameter
-    const storedState = localStorage.getItem('gmail_oauth_state');
-    if (state !== storedState) {
-      throw new Error('Invalid state parameter');
-    }
-    localStorage.removeItem('gmail_oauth_state');
-
-    await this.exchangeCodeForTokens(code);
-  }
-
-  // Exchange authorization code for tokens
-  private async exchangeCodeForTokens(code: string): Promise<void> {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        code: code,
-        grant_type: 'authorization_code',
-        redirect_uri: this.redirectUri,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OAuth error: ${errorData.error_description || errorData.error}`);
-    }
-
-    const data = await response.json();
-    await this.saveTokens(data.access_token, data.refresh_token, data.expires_in);
-  }
-
-  // Save tokens to database
-  private async saveTokens(accessToken: string, refreshToken?: string, expiresIn?: number): Promise<void> {
-    if (!this.credentialsId) {
-      throw new Error('Credentials not saved. Please save settings first.');
-    }
-
-    const tokenExpiresAt = expiresIn 
-      ? new Date(Date.now() + expiresIn * 1000).toISOString()
-      : null;
-
-    const { error } = await supabase
-      .from('gmail_credentials')
-      .update({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        token_expires_at: tokenExpiresAt,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', this.credentialsId);
-
-    if (error) throw error;
   }
 
   // Refresh access token using refresh token
-  private async refreshAccessToken(): Promise<void> {
+  private async refreshAccessToken(): Promise<string> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -204,8 +160,8 @@ class GmailService {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
+        client_id: GmailService.CLIENT_ID,
+        client_secret: GmailService.CLIENT_SECRET,
         refresh_token: credentials.refresh_token,
         grant_type: 'refresh_token',
       }),
@@ -217,37 +173,46 @@ class GmailService {
 
     const data = await response.json();
     await this.saveTokens(data.access_token, undefined, data.expires_in);
+    return data.access_token;
   }
 
-  // Get current access token from Supabase session
+  // Get current access token - try database first, then Supabase session
   private async getAccessToken(): Promise<string> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.provider_token) {
-      throw new Error('No Google provider token available. Please authenticate with Google OAuth.');
-    }
-
-    // For Gmail API, we need to use the Google provider token, not the Supabase access token
-    return session.provider_token;
-  }
-
-  // Get credentials for display purposes (without sensitive data)
-  public async getCredentials(): Promise<{ clientId: string; clientSecret: string } | null> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) throw new Error('User not authenticated');
 
-    const { data, error } = await supabase
+    // First, try to get token from our database
+    const { data: credentials, error } = await supabase
       .from('gmail_credentials')
-      .select('client_id, client_secret')
+      .select('access_token, token_expires_at')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .single();
 
-    if (error || !data) return null;
+    if (!error && credentials?.access_token) {
+      // Check if token is expired
+      if (credentials.token_expires_at) {
+        const expiresAt = new Date(credentials.token_expires_at);
+        if (expiresAt > new Date()) {
+          return credentials.access_token;
+        }
+      } else {
+        // If no expiration, assume it's still valid
+        return credentials.access_token;
+      }
+    }
 
-    return {
-      clientId: data.client_id,
-      clientSecret: data.client_secret
-    };
+    // If database token is expired or doesn't exist, try to refresh
+    try {
+      return await this.refreshAccessToken();
+    } catch (refreshError) {
+      // If refresh fails, try Supabase session as fallback
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.provider_token) {
+        throw new Error('No Gmail access token available. Please authenticate with Google OAuth and grant Gmail permissions.');
+      }
+      return session.provider_token;
+    }
   }
 
   // Send email using Gmail API
@@ -325,18 +290,51 @@ class GmailService {
   // Check if user is authenticated with Gmail scope
   public async isAuthenticated(): Promise<boolean> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // First check if we have stored Gmail credentials with tokens
+      const { data: credentials, error } = await supabase
+        .from('gmail_credentials')
+        .select('access_token, token_expires_at')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (!error && credentials?.access_token) {
+        // Check if token is expired
+        if (credentials.token_expires_at) {
+          const expiresAt = new Date(credentials.token_expires_at);
+          if (expiresAt > new Date()) {
+            return true;
+          }
+        } else {
+          // If no expiration, assume it's still valid
+          return true;
+        }
+      }
+
+      // If no stored credentials, check Supabase session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.provider_token) return false;
 
       // Check if the session has Gmail scope by examining the provider token
-      // When using Supabase OAuth with Google, the provider token contains the Gmail scope
       try {
         const tokenParts = session.provider_token.split('.');
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
           const scope = payload.scope || '';
           // Check if Gmail sending scope is present
-          return scope.includes('https://www.googleapis.com/auth/gmail.send');
+          const hasGmailScope = scope.includes('https://www.googleapis.com/auth/gmail.send') || 
+                               scope.includes('https://www.googleapis.com/auth/gmail.compose');
+          
+          if (hasGmailScope) {
+            // If we have Gmail scopes in the session but no stored credentials, save them
+            if (!credentials?.access_token) {
+              await this.saveTokens(session.provider_token, undefined, undefined);
+            }
+            return true;
+          }
         }
       } catch (e) {
         console.log('Error decoding provider token:', e);
@@ -365,7 +363,7 @@ class GmailService {
 
   // Get redirect URI for Google Cloud Console configuration
   public getRedirectUri(): string {
-    return this.redirectUri;
+    return GmailService.REDIRECT_URI;
   }
 }
 

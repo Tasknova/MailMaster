@@ -40,6 +40,38 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
     }
   };
 
+  // Debug function to check user data
+  const debugUserData = () => {
+    console.log('User object:', user);
+    console.log('User metadata:', user?.user_metadata);
+    console.log('User app metadata:', user?.app_metadata);
+    console.log('User raw app metadata:', user?.raw_app_meta_data);
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    // Try different possible locations for user name
+    const firstName = user?.user_metadata?.first_name || 
+                     user?.user_metadata?.name?.split(' ')[0] ||
+                     user?.raw_app_meta_data?.provider === 'google' ? user?.user_metadata?.full_name?.split(' ')[0] : null;
+    
+    const lastName = user?.user_metadata?.last_name || 
+                    user?.user_metadata?.name?.split(' ')[1] ||
+                    user?.raw_app_meta_data?.provider === 'google' ? user?.user_metadata?.full_name?.split(' ')[1] : null;
+
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    } else if (firstName) {
+      return firstName;
+    } else if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name;
+    } else if (user?.user_metadata?.name) {
+      return user.user_metadata.name;
+    }
+    
+    return user?.email || 'User';
+  };
+
   const menuItems = [
     {
       id: 'dashboard',
@@ -70,11 +102,30 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
       label: 'Settings',
       icon: Settings,
       description: 'Account and preferences'
+    },
+    {
+      id: 'test-width',
+      label: 'Width Test',
+      icon: Settings,
+      description: 'Debug width issues'
+    },
+    {
+      id: 'debug-width',
+      label: 'Debug Width',
+      icon: Settings,
+      description: 'Raw width debug'
     }
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <div style={{ 
+      width: '256px', 
+      backgroundColor: 'white', 
+      borderRight: '1px solid #e5e7eb', 
+      display: 'flex', 
+      flexDirection: 'column',
+      flexShrink: 0
+    }}>
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center space-x-3">
@@ -98,10 +149,7 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.user_metadata?.first_name && user?.user_metadata?.last_name 
-                    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
-                    : user?.email
-                  }
+                  {getUserDisplayName()}
                 </p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>

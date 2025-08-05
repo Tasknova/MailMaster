@@ -77,14 +77,11 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
 
   const fetchTemplates = async () => {
     try {
-      console.log('CampaignBuilder: Fetching templates...');
       const { data, error } = await supabase
         .from('templates')
         .select('*')
         .order('created_at', { ascending: false });
 
-      console.log('CampaignBuilder: Templates fetch result:', { data, error, count: data?.length });
-      
       if (error) throw error;
       setTemplates(data || []);
     } catch (error) {
@@ -92,208 +89,109 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
     }
   };
 
-  // Force refresh templates on mount
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
   const handleInputChange = (field: string, value: string) => {
-    console.log(`Updating form field ${field}:`, value);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const validateForm = () => {
-    if (!formData.name.trim()) {
-      toast({ title: "Campaign name is required", variant: "destructive" });
-      return false;
-    }
-    if (!formData.subject.trim()) {
-      toast({ title: "Subject line is required", variant: "destructive" });
-      return false;
-    }
-    if (!formData.list_id) {
-      toast({ title: "Please select a contact list", variant: "destructive" });
-      return false;
-    }
-    if (!formData.html_content.trim()) {
-      toast({ title: "Email content is required", variant: "destructive" });
-      return false;
-    }
-    if (!formData.template_id) {
-      toast({ title: "Please select a template", variant: "destructive" });
-      return false;
-    }
-    return true;
-  };
-
   const handleTemplateSelect = (template: Template) => {
-    console.log('Template selected:', template);
     setSelectedTemplate(template);
     setFormData(prev => ({
       ...prev,
       template_id: template.id,
       html_content: template.html_content
     }));
-    setPreviewHtml(template.html_content);
+    generatePreview(template.html_content);
     setShowTemplateManager(false);
   };
 
   const generatePreview = (htmlContent: string) => {
-    // Replace template variables with sample data
     let preview = htmlContent
-      .replace(/\{\{company_name\}\}/g, 'Your Company Name')
-      .replace(/\{\{company_email\}\}/g, 'contact@yourcompany.com')
-      .replace(/\{\{company_phone\}\}/g, '+1 (555) 123-4567')
-      .replace(/\{\{company_address\}\}/g, '123 Business St, City, State 12345')
       .replace(/\{\{first_name\}\}/g, 'John')
-      .replace(/\{\{subject\}\}/g, formData.subject || 'Sample Email Subject')
-      .replace(/\{\{unsubscribe_url\}\}/g, '#')
-      .replace(/\{\{preferences_url\}\}/g, '#');
-
+      .replace(/\{\{last_name\}\}/g, 'Doe')
+      .replace(/\{\{company_name\}\}/g, 'Sample Company')
+      .replace(/\{\{subject\}\}/g, formData.subject || 'Sample Subject');
+    
     setPreviewHtml(preview);
   };
 
-  const saveCampaign = async (status: 'draft' | 'sending' = 'draft') => {
-    if (!validateForm()) return false;
-
-    try {
-      console.log('Saving campaign with data:', {
-        user_id: user?.id,
-        name: formData.name,
-        subject: formData.subject,
-        from_name: user?.user_metadata?.first_name || 'Campaign',
-        from_email: user?.email || '',
-        reply_to_email: user?.email || '',
-        list_id: formData.list_id,
-        template_id: formData.template_id,
-        html_content: formData.html_content?.substring(0, 100) + '...',
-        status,
+  const handleSave = async () => {
+    if (!formData.name || !formData.subject || !formData.list_id) {
+      toast({
+        title: "Missing required fields",
+        description: "Please fill in campaign name, subject, and select a contact list",
+        variant: "destructive",
       });
+      return;
+    }
 
-      const { data, error } = await supabase
+    setSaving(true);
+    try {
+      const { error } = await supabase
         .from('campaigns')
         .insert({
           user_id: user?.id,
           name: formData.name,
           subject: formData.subject,
-          from_name: user?.user_metadata?.first_name || 'Campaign',
-          from_email: user?.email || '',
-          reply_to_email: user?.email || '',
           list_id: formData.list_id,
           template_id: formData.template_id || null,
-          html_content: formData.html_content,
-          status,
-        })
-        .select();
+          html_content: formData.html_content || selectedTemplate?.html_content || '',
+          status: 'draft',
+          from_name: 'MailMaster Campaign',
+          from_email: user?.email || '',
+        });
 
-      if (error) {
-        console.error('Database error:', error);
-        throw error;
-      }
-      
-      console.log('Campaign saved successfully:', data);
-      return true;
+      if (error) throw error;
+
+      toast({
+        title: "Campaign Saved",
+        description: "Your campaign has been saved as a draft",
+      });
     } catch (error) {
-      console.error('Error saving campaign:', error);
       toast({
         title: "Error saving campaign",
         description: error instanceof Error ? error.message : "Failed to save campaign",
         variant: "destructive",
       });
-      return false;
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    const success = await saveCampaign('draft');
-    if (success) {
-      toast({ title: "Campaign saved as draft" });
-      onBack();
-    }
-    setSaving(false);
   };
 
   const handleSend = async () => {
-    setSending(true);
-    const success = await saveCampaign('sending');
-    if (success) {
-      try {
-        // Get the campaign ID from the saved campaign
-        const { data: campaigns } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('user_id', user?.id)
-          .eq('name', formData.name)
-          .eq('subject', formData.subject)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (campaigns && campaigns.length > 0) {
-          const result = await sendCampaignEmails();
-          if (result.success) {
-            toast({ 
-              title: "Campaign sent successfully!", 
-              description: result.message 
-            });
-          } else {
-            toast({ 
-              title: "Campaign sent with issues", 
-              description: result.message,
-              variant: "destructive"
-            });
-          }
-        }
-        onBack();
-      } catch (error) {
-        toast({
-          title: "Error sending campaign",
-          description: error instanceof Error ? error.message : "Failed to send campaign",
-          variant: "destructive",
-        });
-      }
-    }
-    setSending(false);
-  };
-
-  const sendCampaignEmails = async () => {
-    if (!selectedTemplate || !formData.list_id) {
+    if (!formData.name || !formData.subject || !formData.list_id) {
       toast({
-        title: "Missing Information",
-        description: "Please select a template and contact list.",
+        title: "Missing required fields",
+        description: "Please fill in all required fields before sending",
         variant: "destructive",
       });
-      return { success: false, message: "Missing template or contact list" };
+      return;
     }
 
-    try {
-      // Create a Gmail service instance to check authentication
-      const gmailService = new GmailService({
-        clientId: '',
-        clientSecret: ''
+    if (!selectedTemplate && !formData.html_content) {
+      toast({
+        title: "No email content",
+        description: "Please select a template or add custom HTML content",
+        variant: "destructive",
       });
+      return;
+    }
 
-      // Check if authenticated with Gmail scope
-      console.log('Checking Gmail authentication...');
+    setSending(true);
+    try {
+      // First save the campaign
+      await handleSave();
+
+      // Check Gmail authentication
+      const gmailService = new GmailService();
       const isAuthenticated = await gmailService.isAuthenticated();
-      console.log('Gmail authentication result:', isAuthenticated);
       
       if (!isAuthenticated) {
-        // Get more details about the session for debugging
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Session details:', {
-          hasSession: !!session,
-          hasProviderToken: !!session?.provider_token,
-          hasAccessToken: !!session?.access_token,
-          provider: session?.user?.app_metadata?.provider
-        });
-        
         toast({
           title: "Gmail Authentication Required",
-          description: "Please authenticate with Google to grant Gmail sending permissions. You may need to sign out and sign in again.",
+          description: "Please authenticate with Google to grant Gmail sending permissions. Go to Settings → Gmail Settings to authenticate.",
           variant: "destructive",
         });
-        return { success: false, message: "Gmail API not authenticated" };
+        return;
       }
 
       // Fetch contacts from the selected list
@@ -309,48 +207,22 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
           description: "The selected contact list is empty.",
           variant: "destructive",
         });
-        return { success: false, message: "No contacts found in list" };
+        return;
       }
 
-      // Get the campaign that was just saved
-      const { data: campaigns } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', user?.id)
-        .eq('name', formData.name)
-        .eq('subject', formData.subject)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (!campaigns || campaigns.length === 0) {
-        throw new Error('Campaign not found');
-      }
-
-      const campaignId = campaigns[0].id;
       let sentCount = 0;
       let errorCount = 0;
 
       // Send emails to each contact
       for (const contact of contacts) {
         try {
-          // Replace template variables
-          let emailContent = selectedTemplate.html_content;
+          let emailContent = selectedTemplate?.html_content || formData.html_content;
           
-          // Replace common variables
+          // Replace template variables
           emailContent = emailContent.replace(/\{\{first_name\}\}/g, contact.first_name || '');
           emailContent = emailContent.replace(/\{\{last_name\}\}/g, contact.last_name || '');
           emailContent = emailContent.replace(/\{\{email\}\}/g, contact.email || '');
-          emailContent = emailContent.replace(/\{\{company_name\}\}/g, contact.company_name || '');
           
-          // Replace any custom fields
-          if (contact.custom_fields) {
-            const customFields = contact.custom_fields;
-            Object.keys(customFields).forEach(key => {
-              const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-              emailContent = emailContent.replace(regex, customFields[key] || '');
-            });
-          }
-
           // Send email using Gmail API
           await gmailService.sendEmail({
             to: [contact.email],
@@ -366,18 +238,6 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
         }
       }
 
-      // Update campaign stats
-      await supabase
-        .from('campaigns')
-        .update({
-          total_sent: sentCount,
-          total_opened: 0,
-          total_clicked: 0,
-          total_bounced: errorCount,
-          status: 'sent'
-        })
-        .eq('id', campaignId);
-
       const message = `Sent ${sentCount} emails successfully${errorCount > 0 ? `, ${errorCount} failed` : ''}`;
       
       if (errorCount === 0) {
@@ -385,14 +245,12 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
           title: "Campaign Sent Successfully!",
           description: message,
         });
-        return { success: true, message };
       } else {
         toast({
           title: "Campaign Sent with Issues",
           description: message,
           variant: "destructive",
         });
-        return { success: false, message };
       }
 
     } catch (error) {
@@ -402,7 +260,8 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
         description: error instanceof Error ? error.message : "Failed to send campaign emails",
         variant: "destructive",
       });
-      return { success: false, message: error instanceof Error ? error.message : "Unknown error" };
+    } finally {
+      setSending(false);
     }
   };
 
@@ -427,8 +286,9 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
 </div>`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ width: '100%', maxWidth: 'none' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={onBack}>
             <ArrowLeft className="w-4 h-4" />
@@ -439,70 +299,6 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={async () => {
-              console.log('Current form data:', formData);
-              console.log('Selected template:', selectedTemplate);
-              console.log('User:', user);
-              
-              // Test database connection
-              try {
-                const { data: testData, error: testError } = await supabase
-                  .from('campaigns')
-                  .select('count')
-                  .limit(1);
-                
-                console.log('Database test:', { testData, testError });
-                
-                // Test template access
-                const { data: templateData, error: templateError } = await supabase
-                  .from('templates')
-                  .select('id, name')
-                  .limit(5);
-                
-                console.log('Template test:', { templateData, templateError });
-                
-                alert(`Form Data: ${JSON.stringify(formData, null, 2)}\n\nSelected Template: ${selectedTemplate?.name || 'None'}\n\nDatabase Test: ${testError ? 'FAILED' : 'SUCCESS'}\nTemplate Test: ${templateError ? 'FAILED' : 'SUCCESS'}`);
-              } catch (error) {
-                console.error('Debug test error:', error);
-                alert(`Debug test failed: ${error}`);
-              }
-            }}
-          >
-            Debug
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={async () => {
-              try {
-                const gmailService = new GmailService({
-                  clientId: '',
-                  clientSecret: ''
-                });
-                
-                const isAuth = await gmailService.isAuthenticated();
-                const { data: { session } } = await supabase.auth.getSession();
-                
-                const authInfo = {
-                  isAuthenticated: isAuth,
-                  hasSession: !!session,
-                  hasProviderToken: !!session?.provider_token,
-                  hasAccessToken: !!session?.access_token,
-                  provider: session?.user?.app_metadata?.provider,
-                  userEmail: session?.user?.email
-                };
-                
-                console.log('Gmail Auth Info:', authInfo);
-                alert(`Gmail Auth Status:\n${JSON.stringify(authInfo, null, 2)}`);
-              } catch (error) {
-                alert(`Gmail Auth Test failed: ${error}`);
-              }
-            }}
-          >
-            Test Gmail Auth
-          </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save as Draft'}
           </Button>
@@ -512,181 +308,200 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="details">Campaign Details</TabsTrigger>
-          <TabsTrigger value="template">Template</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
-        </TabsList>
+      {/* Main Content */}
+      <div style={{ width: '100%', maxWidth: 'none' }}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="details">Campaign Details</TabsTrigger>
+            <TabsTrigger value="template">Template</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Campaign Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="campaign-name">Campaign Name</Label>
-                <Input
-                  id="campaign-name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="My Email Campaign"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="subject">Subject Line</Label>
-                <Input
-                  id="subject"
-                  value={formData.subject}
-                  onChange={(e) => handleInputChange('subject', e.target.value)}
-                  placeholder="Enter your email subject"
-                />
-              </div>
+          {/* Campaign Details Tab */}
+          <TabsContent value="details" style={{ width: '100%', marginTop: '1rem' }}>
+            <Card style={{ width: '100%', maxWidth: 'none' }}>
+              <CardHeader>
+                <CardTitle>Campaign Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="campaign-name">Campaign Name</Label>
+                  <Input
+                    id="campaign-name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    placeholder="My Email Campaign"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Subject Line</Label>
+                  <Input
+                    id="subject"
+                    value={formData.subject}
+                    onChange={(e) => handleInputChange('subject', e.target.value)}
+                    placeholder="Enter your email subject"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="contact-list">Contact List</Label>
-                <Select value={formData.list_id} onValueChange={(value) => handleInputChange('list_id', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a contact list" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contactLists.map((list) => (
-                      <SelectItem key={list.id} value={list.id}>
-                        {list.name} ({list.total_contacts} contacts)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-list">Contact List</Label>
+                  <Select value={formData.list_id} onValueChange={(value) => handleInputChange('list_id', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a contact list" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contactLists.map((list) => (
+                        <SelectItem key={list.id} value={list.id}>
+                          {list.name} ({list.total_contacts} contacts)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="template" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Template</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Choose a template or create a custom one
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Select Template</Label>
-                <Select 
-                  value={formData.template_id} 
-                  onValueChange={(value) => {
-                    const template = templates.find(t => t.id === value);
-                    if (template) {
-                      handleTemplateSelect(template);
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          {template.name}
-                          {template.is_default && (
-                            <span className="text-xs bg-muted px-2 py-1 rounded">Default</span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Template Tab */}
+          <TabsContent value="template" style={{ width: '100%', marginTop: '1rem' }}>
+            <Card style={{ width: '100%', maxWidth: 'none' }}>
+              <CardHeader>
+                <CardTitle>Email Template</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Choose a template or create a custom one
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Template</Label>
+                  <Select 
+                    value={formData.template_id} 
+                    onValueChange={(value) => {
+                      const template = templates.find(t => t.id === value);
+                      if (template) {
+                        handleTemplateSelect(template);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            {template.name}
+                            {template.is_default && (
+                              <span className="text-xs bg-muted px-2 py-1 rounded">Default</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {selectedTemplate && (
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-2">{selectedTemplate.name}</h4>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {selectedTemplate.description}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setActiveTab('preview');
-                        generatePreview(selectedTemplate.html_content);
-                      }}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Preview
-                    </Button>
+                {selectedTemplate && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h4 className="font-medium mb-2">{selectedTemplate.name}</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {selectedTemplate.description}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setActiveTab('preview');
+                          generatePreview(selectedTemplate.html_content);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Preview
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowTemplateManager(true)}
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        Manage Templates
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="html-content">Custom HTML Content</Label>
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => setShowTemplateManager(true)}
                     >
                       <FileText className="w-4 h-4 mr-1" />
-                      Manage Templates
+                      Template Manager
                     </Button>
                   </div>
+                  <Textarea
+                    id="html-content"
+                    value={formData.html_content}
+                    onChange={(e) => {
+                      handleInputChange('html_content', e.target.value);
+                      generatePreview(e.target.value);
+                    }}
+                    placeholder="<html>...</html> or paste your custom HTML here"
+                    className="min-h-64 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use variables like {'{{first_name}}'}, {'{{company_name}}'}, etc. for personalization
+                  </p>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="html-content">Custom HTML Content</Label>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowTemplateManager(true)}
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    Template Manager
-                  </Button>
-                </div>
-                <Textarea
-                  id="html-content"
-                  value={formData.html_content}
-                  onChange={(e) => {
-                    handleInputChange('html_content', e.target.value);
-                    generatePreview(e.target.value);
-                  }}
-                  placeholder="<html>...</html> or paste your custom HTML here"
-                  className="min-h-64 font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use variables like {'{{first_name}}'}, {'{{company_name}}'}, etc. for personalization
+          {/* Preview Tab */}
+          <TabsContent value="preview" style={{ width: '100%', marginTop: '1rem' }}>
+            <Card style={{ width: '100%', maxWidth: 'none' }}>
+              <CardHeader>
+                <CardTitle>Email Preview</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Preview how your email will look to recipients
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="preview" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Preview</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Preview how your email will look to recipients
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
+              </CardHeader>
+              <CardContent>
                 <div 
-                  className="w-full h-96 overflow-auto bg-white"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  style={{ 
+                    border: '1px solid hsl(var(--border))', 
+                    borderRadius: '0.5rem', 
+                    overflow: 'hidden',
+                    width: '100%'
+                  }}
+                >
+                  <div 
+                    style={{ 
+                      width: '100%', 
+                      minHeight: '400px', 
+                      overflow: 'auto', 
+                      backgroundColor: 'white',
+                      padding: '1rem'
+                    }}
+                    dangerouslySetInnerHTML={{ __html: previewHtml || defaultTemplate }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Template Manager Modal */}
       {showTemplateManager && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg p-6 w-full max-w-4xl h-[80vh] overflow-auto">
+          <div className="bg-background rounded-lg p-6 w-full max-w-6xl h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Template Manager</h2>
               <Button variant="outline" onClick={() => setShowTemplateManager(false)}>
