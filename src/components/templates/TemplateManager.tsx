@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import TemplatePreview from '../campaigns/TemplatePreview';
 
 interface Template {
   id: string;
@@ -42,6 +43,8 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
   const [customHtml, setCustomHtml] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
@@ -147,7 +150,7 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 'none' }}>
+    <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -167,8 +170,8 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
       </div>
 
       {/* Main Content */}
-      <div style={{ width: '100%', maxWidth: 'none' }}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
+      <div className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="templates">Available Templates</TabsTrigger>
             <TabsTrigger value="custom">Create Custom Template</TabsTrigger>
@@ -176,7 +179,7 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
           </TabsList>
 
           {/* Templates List Tab */}
-          <TabsContent value="templates" style={{ width: '100%', marginTop: '1rem' }}>
+          <TabsContent value="templates" className="w-full mt-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">
                 Available Templates ({templates.length})
@@ -200,9 +203,9 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
                 </CardContent>
               </Card>
             ) : (
-              <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+              <div className="grid gap-4 w-full">
                 {templates.map((template) => (
-                  <Card key={template.id} className="hover:shadow-card transition-smooth" style={{ width: '100%' }}>
+                  <Card key={template.id} className="hover:shadow-card transition-smooth w-full">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div>
@@ -236,8 +239,8 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
                             variant="outline" 
                             size="sm"
                             onClick={() => {
-                              generatePreview(template.html_content);
-                              setActiveTab('preview');
+                              setPreviewTemplate(template);
+                              setShowTemplatePreview(true);
                             }}
                           >
                             <Eye className="w-4 h-4 mr-1" />
@@ -261,8 +264,8 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
           </TabsContent>
 
           {/* Create Custom Template Tab */}
-          <TabsContent value="custom" style={{ width: '100%', marginTop: '1rem' }}>
-            <Card style={{ width: '100%', maxWidth: 'none' }}>
+          <TabsContent value="custom" className="w-full mt-4">
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>Create Custom HTML Template</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -300,8 +303,8 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
           </TabsContent>
 
           {/* Preview Tab */}
-          <TabsContent value="preview" style={{ width: '100%', marginTop: '1rem' }}>
-            <Card style={{ width: '100%', maxWidth: 'none' }}>
+          <TabsContent value="preview" className="w-full mt-4">
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>Email Preview</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -309,22 +312,9 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
                 </p>
               </CardHeader>
               <CardContent>
-                <div 
-                  style={{ 
-                    border: '1px solid hsl(var(--border))', 
-                    borderRadius: '0.5rem', 
-                    overflow: 'hidden', 
-                    backgroundColor: 'white',
-                    width: '100%'
-                  }}
-                >
+                <div className="border border-border rounded-lg overflow-hidden bg-white w-full">
                   <div 
-                    style={{ 
-                      width: '100%', 
-                      height: '400px', 
-                      overflow: 'auto',
-                      padding: '1rem'
-                    }}
+                    className="w-full h-[400px] overflow-auto p-4"
                     dangerouslySetInnerHTML={{ __html: previewHtml || '<p>No content to preview. Create a template or add custom HTML content.</p>' }}
                   />
                 </div>
@@ -336,7 +326,7 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
 
       {/* Create Template Form */}
       {showCreateTemplate && (
-        <Card style={{ width: '100%', maxWidth: 'none', marginTop: '1.5rem' }}>
+        <Card className="w-full mt-6">
           <CardHeader>
             <CardTitle>Create New Template</CardTitle>
           </CardHeader>
@@ -377,6 +367,17 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Template Preview Full Page */}
+      {showTemplatePreview && previewTemplate && (
+        <TemplatePreview
+          htmlContent={previewTemplate.html_content}
+          onBack={() => {
+            setShowTemplatePreview(false);
+            setPreviewTemplate(null);
+          }}
+        />
       )}
     </div>
   );

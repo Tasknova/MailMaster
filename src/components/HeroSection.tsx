@@ -26,11 +26,8 @@ const HeroSection = () => {
         <div className="container mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Mail className="w-4 h-4 text-white" />
-              </div>
               <h1 className="text-xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-                Email Master
+                MailMaster
               </h1>
             </div>
             <div className="flex items-center gap-4">
@@ -56,7 +53,7 @@ const HeroSection = () => {
                 </span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Send professional email campaigns directly from Gmail. Track opens, clicks, and replies with advanced analytics. Perfect for small businesses and agencies.
+                Send professional email campaigns directly from Gmail. Track opens, clicks, and replies with advanced analytics. Perfect for small businesses and agencies, powered by Tasknova.
               </p>
             </div>
 

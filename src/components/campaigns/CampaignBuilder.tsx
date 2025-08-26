@@ -5,13 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Save, Send, FileText, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Send, FileText, Eye, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { sendCampaignEmails } from '@/lib/emailService';
 import TemplateManager from '../templates/TemplateManager';
+import TemplatePreview from './TemplatePreview';
 import GmailService from '@/services/gmailService';
 
 interface ContactList {
@@ -31,16 +31,20 @@ interface Template {
 
 interface CampaignBuilderProps {
   onBack: () => void;
+  onCreateContactList?: () => void;
+  onCampaignSent?: () => void;
+  campaignId?: string; // For editing existing campaigns
 }
 
-const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
+const CampaignBuilder = ({ onBack, onCreateContactList, onCampaignSent, campaignId }: CampaignBuilderProps) => {
   const { user } = useAuth();
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
-  const [previewHtml, setPreviewHtml] = useState('');
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [showVariablePanel, setShowVariablePanel] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -55,7 +59,10 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
   useEffect(() => {
     fetchContactLists();
     fetchTemplates();
-  }, [user]);
+    if (campaignId) {
+      fetchCampaignData();
+    }
+  }, [user, campaignId]);
 
   const fetchContactLists = async () => {
     try {
@@ -89,6 +96,48 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
     }
   };
 
+  const fetchCampaignData = async () => {
+    if (!campaignId) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setFormData({
+          name: data.name || '',
+          subject: data.subject || '',
+          list_id: data.list_id || '',
+          template_id: data.template_id || '',
+          html_content: data.html_content || '',
+        });
+
+        // Set selected template if exists
+        if (data.template_id) {
+          const template = templates.find(t => t.id === data.template_id);
+          if (template) {
+            setSelectedTemplate(template);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching campaign data:', error);
+      toast({
+        title: "Error loading campaign",
+        description: "Failed to load campaign data for editing",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -100,18 +149,7 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
       template_id: template.id,
       html_content: template.html_content
     }));
-    generatePreview(template.html_content);
     setShowTemplateManager(false);
-  };
-
-  const generatePreview = (htmlContent: string) => {
-    let preview = htmlContent
-      .replace(/\{\{first_name\}\}/g, 'John')
-      .replace(/\{\{last_name\}\}/g, 'Doe')
-      .replace(/\{\{company_name\}\}/g, 'Sample Company')
-      .replace(/\{\{subject\}\}/g, formData.subject || 'Sample Subject');
-    
-    setPreviewHtml(preview);
   };
 
   const handleSave = async () => {
@@ -121,37 +159,70 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
         description: "Please fill in campaign name, subject, and select a contact list",
         variant: "destructive",
       });
-      return;
+      return null;
     }
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Check if campaign already exists
+      const { data: existingCampaign } = await supabase
         .from('campaigns')
-        .insert({
-          user_id: user?.id,
-          name: formData.name,
-          subject: formData.subject,
-          list_id: formData.list_id,
-          template_id: formData.template_id || null,
-          html_content: formData.html_content || selectedTemplate?.html_content || '',
-          status: 'draft',
-          from_name: 'MailMaster Campaign',
-          from_email: user?.email || '',
-        });
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('name', formData.name)
+        .eq('subject', formData.subject)
+        .eq('list_id', formData.list_id)
+        .maybeSingle();
 
-      if (error) throw error;
+      let campaignId = existingCampaign?.id;
+
+      if (!campaignId) {
+        // Create new campaign
+        const { data: newCampaign, error: insertError } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: user?.id,
+            name: formData.name,
+            subject: formData.subject,
+            list_id: formData.list_id,
+            template_id: formData.template_id || null,
+            html_content: formData.html_content || selectedTemplate?.html_content || '',
+            status: 'draft',
+            from_name: 'Tasknova MailMaster Campaign',
+            from_email: user?.email || '',
+          })
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        campaignId = newCampaign.id;
+      } else {
+        // Update existing campaign
+        const { error: updateError } = await supabase
+          .from('campaigns')
+          .update({
+            template_id: formData.template_id || null,
+            html_content: formData.html_content || selectedTemplate?.html_content || '',
+            from_name: 'Tasknova MailMaster Campaign',
+            from_email: user?.email || '',
+          })
+          .eq('id', campaignId);
+
+        if (updateError) throw updateError;
+      }
 
       toast({
         title: "Campaign Saved",
         description: "Your campaign has been saved as a draft",
       });
+      return campaignId;
     } catch (error) {
       toast({
         title: "Error saving campaign",
         description: error instanceof Error ? error.message : "Failed to save campaign",
         variant: "destructive",
       });
+      return null;
     } finally {
       setSaving(false);
     }
@@ -179,7 +250,11 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
     setSending(true);
     try {
       // First save the campaign
-      await handleSave();
+      const campaignId = await handleSave();
+      if (!campaignId) {
+        setSending(false);
+        return;
+      }
 
       // Check Gmail authentication
       const gmailService = new GmailService();
@@ -228,13 +303,36 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
             to: [contact.email],
             subject: formData.subject,
             htmlContent: emailContent,
-            fromName: 'MailMaster Campaign'
+            fromName: 'Tasknova MailMaster Campaign'
           });
 
           sentCount++;
         } catch (error) {
           console.error(`Error sending email to ${contact.email}:`, error);
           errorCount++;
+        }
+      }
+
+      // Update campaign status and statistics after sending
+      if (sentCount > 0) {
+        const { error: updateError } = await supabase
+          .from('campaigns')
+          .update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            total_recipients: contacts.length,
+            total_sent: sentCount,
+            total_delivered: sentCount, // Assuming all sent emails are delivered initially
+            total_bounced: errorCount,
+            total_opened: 0, // Will be updated by tracking
+            total_clicked: 0, // Will be updated by tracking
+            total_unsubscribed: 0 // Will be updated by tracking
+          })
+          .eq('id', campaignId) // Use the campaign ID from the saved campaign
+          .eq('user_id', user?.id);
+
+        if (updateError) {
+          console.error('Error updating campaign status:', updateError);
         }
       }
 
@@ -245,6 +343,10 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
           title: "Campaign Sent Successfully!",
           description: message,
         });
+        // Call callback to refresh campaign data
+        if (onCampaignSent) {
+          onCampaignSent();
+        }
       } else {
         toast({
           title: "Campaign Sent with Issues",
@@ -286,7 +388,14 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
 </div>`;
 
   return (
-    <div style={{ width: '100%', maxWidth: 'none' }}>
+    <div className="w-full">
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -294,13 +403,17 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Create Campaign</h2>
-            <p className="text-muted-foreground">Build and send your email campaign</p>
+            <h2 className="text-2xl font-bold tracking-tight">
+              {campaignId ? 'Edit Campaign' : 'Create Campaign'}
+            </h2>
+            <p className="text-muted-foreground">
+              {campaignId ? 'Update your email campaign' : 'Build and send your email campaign'}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save as Draft'}
+            {saving ? 'Saving...' : campaignId ? 'Update Campaign' : 'Save as Draft'}
           </Button>
           <Button onClick={handleSend} disabled={sending} variant="hero">
             {sending ? 'Sending...' : 'Send Campaign'}
@@ -309,199 +422,314 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
       </div>
 
       {/* Main Content */}
-      <div style={{ width: '100%', maxWidth: 'none' }}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="details">Campaign Details</TabsTrigger>
-            <TabsTrigger value="template">Template</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-          </TabsList>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column - Campaign Details & Template Selection */}
+        <div className="space-y-6">
+          {/* Campaign Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="campaign-name">Campaign Name</Label>
+                <Input
+                  id="campaign-name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="My Email Campaign"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject Line</Label>
+                <Input
+                  id="subject"
+                  value={formData.subject}
+                  onChange={(e) => handleInputChange('subject', e.target.value)}
+                  placeholder="Enter your email subject"
+                />
+              </div>
 
-          {/* Campaign Details Tab */}
-          <TabsContent value="details" style={{ width: '100%', marginTop: '1rem' }}>
-            <Card style={{ width: '100%', maxWidth: 'none' }}>
-              <CardHeader>
-                <CardTitle>Campaign Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="campaign-name">Campaign Name</Label>
-                  <Input
-                    id="campaign-name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="My Email Campaign"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Subject Line</Label>
-                  <Input
-                    id="subject"
-                    value={formData.subject}
-                    onChange={(e) => handleInputChange('subject', e.target.value)}
-                    placeholder="Enter your email subject"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="contact-list">Contact List</Label>
-                  <Select value={formData.list_id} onValueChange={(value) => handleInputChange('list_id', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a contact list" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contactLists.map((list) => (
+              <div className="space-y-2">
+                <Label htmlFor="contact-list">Contact List</Label>
+                <Select value={formData.list_id} onValueChange={(value) => handleInputChange('list_id', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a contact list" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contactLists.length > 0 ? (
+                      contactLists.map((list) => (
                         <SelectItem key={list.id} value={list.id}>
                           {list.name} ({list.total_contacts} contacts)
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      ))
+                    ) : (
+                      <div className="p-2">
+                        <div className="text-sm text-muted-foreground mb-2">No contact lists found</div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => {
+                            if (onCreateContactList) {
+                              onCreateContactList();
+                            } else {
+                              // Fallback: show toast with instructions
+                              toast({
+                                title: "No Contact Lists",
+                                description: "Please create a contact list first. Go to Contacts → Create List.",
+                              });
+                            }
+                          }}
+                        >
+                          Create Contact List
+                        </Button>
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Template Selection */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Email Template</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Choose a template or create a custom one
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowTemplateManager(true)}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  Manage Templates
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Select Template</Label>
+                <Select 
+                  value={formData.template_id} 
+                  onValueChange={(value) => {
+                    const template = templates.find(t => t.id === value);
+                    if (template) {
+                      handleTemplateSelect(template);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          {template.name}
+                          {template.is_default && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded">Default</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Template Tab */}
-          <TabsContent value="template" style={{ width: '100%', marginTop: '1rem' }}>
-            <Card style={{ width: '100%', maxWidth: 'none' }}>
-              <CardHeader>
-                <CardTitle>Email Template</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Choose a template or create a custom one
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Select Template</Label>
-                  <Select 
-                    value={formData.template_id} 
-                    onValueChange={(value) => {
-                      const template = templates.find(t => t.id === value);
-                      if (template) {
-                        handleTemplateSelect(template);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            {template.name}
-                            {template.is_default && (
-                              <span className="text-xs bg-muted px-2 py-1 rounded">Default</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedTemplate && (
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h4 className="font-medium mb-2">{selectedTemplate.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {selectedTemplate.description}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          setActiveTab('preview');
-                          generatePreview(selectedTemplate.html_content);
-                        }}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Preview
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowTemplateManager(true)}
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        Manage Templates
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="html-content">Custom HTML Content</Label>
+              {selectedTemplate && (
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-medium mb-2">{selectedTemplate.name}</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {selectedTemplate.description}
+                  </p>
+                  <div className="flex gap-2">
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => setShowTemplateManager(true)}
+                      onClick={() => setShowTemplatePreview(true)}
                     >
-                      <FileText className="w-4 h-4 mr-1" />
-                      Template Manager
+                      <Eye className="w-4 h-4 mr-1" />
+                      Preview Template
                     </Button>
                   </div>
-                  <Textarea
-                    id="html-content"
-                    value={formData.html_content}
-                    onChange={(e) => {
-                      handleInputChange('html_content', e.target.value);
-                      generatePreview(e.target.value);
-                    }}
-                    placeholder="<html>...</html> or paste your custom HTML here"
-                    className="min-h-64 font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use variables like {'{{first_name}}'}, {'{{company_name}}'}, etc. for personalization
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="html-content">Custom HTML Content</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowVariablePanel(!showVariablePanel)}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Variables
+                  </Button>
+                </div>
+                
+                {/* Variable Insertion Panel */}
+                {showVariablePanel && (
+                  <Card className="mb-4">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Insert Variables</CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        Click on a variable to copy it to clipboard, then paste it in your HTML
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{first_name}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{first_name}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          First Name
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{last_name}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{last_name}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          Last Name
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{email}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{email}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          Email
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{company_name}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{company_name}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          Company Name
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{subject}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{subject}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          Subject
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText('{{unsubscribe_url}}');
+                            toast({
+                              title: "Variable Copied",
+                              description: "{{unsubscribe_url}} copied to clipboard",
+                            });
+                          }}
+                        >
+                          Unsubscribe URL
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                <Textarea
+                  id="html-content"
+                  value={formData.html_content}
+                  onChange={(e) => handleInputChange('html_content', e.target.value)}
+                  placeholder="<html>...</html> or paste your custom HTML here"
+                  className="min-h-64 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use variables like {'{{first_name}}'}, {'{{company_name}}'}, etc. for personalization
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column - Template Preview */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Template Preview</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Preview your email template with variables
                   </p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Preview Tab */}
-          <TabsContent value="preview" style={{ width: '100%', marginTop: '1rem' }}>
-            <Card style={{ width: '100%', maxWidth: 'none' }}>
-              <CardHeader>
-                <CardTitle>Email Preview</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Preview how your email will look to recipients
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  style={{ 
-                    border: '1px solid hsl(var(--border))', 
-                    borderRadius: '0.5rem', 
-                    overflow: 'hidden',
-                    width: '100%'
-                  }}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowTemplatePreview(true)}
                 >
-                  <div 
-                    style={{ 
-                      width: '100%', 
-                      minHeight: '400px', 
-                      overflow: 'auto', 
-                      backgroundColor: 'white',
-                      padding: '1rem'
-                    }}
-                    dangerouslySetInnerHTML={{ __html: previewHtml || defaultTemplate }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  <Eye className="w-4 h-4 mr-1" />
+                  Full Preview
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="border border-border rounded-lg overflow-hidden w-full">
+                <div 
+                  className="w-full min-h-[500px] overflow-auto bg-white p-4"
+                  dangerouslySetInnerHTML={{ 
+                    __html: formData.html_content || selectedTemplate?.html_content || defaultTemplate 
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Template Manager Modal */}
       {showTemplateManager && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg p-6 w-full max-w-6xl h-[90vh] overflow-auto">
+          <div className="bg-background rounded-lg p-6 w-full h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Template Manager</h2>
               <Button variant="outline" onClick={() => setShowTemplateManager(false)}>
@@ -514,6 +742,15 @@ const CampaignBuilder = ({ onBack }: CampaignBuilderProps) => {
             />
           </div>
         </div>
+      )}
+
+      {/* Template Preview Full Page */}
+      {showTemplatePreview && (
+        <TemplatePreview
+          htmlContent={formData.html_content || selectedTemplate?.html_content || defaultTemplate}
+          onBack={() => setShowTemplatePreview(false)}
+          contactListId={formData.list_id}
+        />
       )}
     </div>
   );

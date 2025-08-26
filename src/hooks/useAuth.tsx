@@ -10,6 +10,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signUpWithGoogle: () => Promise<{ error: any }>;
+  configureGmail: () => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,13 +76,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signInWithGoogle = async () => {
+    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'http://localhost:8080/dashboard',
+        redirectTo: `${redirectUrl}/dashboard`,
         queryParams: {
           access_type: 'offline',
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
+          scope: 'openid email profile'
         }
       }
     });
@@ -90,10 +92,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signUpWithGoogle = async () => {
+    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'http://localhost:8080/dashboard',
+        redirectTo: `${redirectUrl}/dashboard`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+          scope: 'openid email profile'
+        }
+      }
+    });
+    
+    return { error };
+  };
+
+  const configureGmail = async () => {
+    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${redirectUrl}/gmail-callback`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -112,7 +132,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signIn,
     signOut,
     signInWithGoogle,
-    signUpWithGoogle
+    signUpWithGoogle,
+    configureGmail
   };
 
   return (

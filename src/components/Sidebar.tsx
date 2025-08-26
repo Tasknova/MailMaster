@@ -35,11 +35,9 @@ const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
       {/* Logo & Brand */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <Mail className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="Tasknova" className="w-20 h-20" />
           <h1 className="text-xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-            Email Master
+            MailMaster
           </h1>
         </div>
       </div>
@@ -109,7 +107,7 @@ const Sidebar = ({ activeItem, onNavigate }: SidebarProps) => {
       {/* Footer */}
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground text-center">
-          Email Master v1.0
+          MailMaster v1.0
         </div>
       </div>
     </div>

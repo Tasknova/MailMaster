@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Mail, Lock, User, Building } from 'lucide-react';
+import { Mail, Lock, User, Building, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,18 +53,36 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle px-4">
-      <div className="w-full max-w-md">
-        <Card className="shadow-elegant border-primary/10">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mb-4">
-              <Mail className="w-6 h-6 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 px-4 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-100/20 to-blue-100/20"></div>
+      <div className="absolute top-10 left-10 w-32 h-32 bg-sky-200/30 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-10 right-10 w-40 h-40 bg-blue-200/30 rounded-full blur-3xl"></div>
+      
+      {/* Home button */}
+      <div className="absolute top-6 left-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 shadow-lg"
+          onClick={() => window.location.href = '/'}
+        >
+          <Home className="w-4 h-4 mr-2" />
+          Home
+        </Button>
+      </div>
+      
+      <div className="w-full max-w-md relative z-10">
+        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center pb-6">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+              <Mail className="w-10 h-10 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent">
+            <CardTitle className="text-3xl font-bold text-gray-900 mb-3">
               {isLogin ? 'Welcome Back' : 'Get Started'}
             </CardTitle>
-            <CardDescription>
-              {isLogin ? 'Sign in to your Email Master account' : 'Create your Email Master account'}
+            <CardDescription className="text-base text-gray-600">
+              {isLogin ? 'Sign in to your MailMaster account' : 'Create your MailMaster account'}
             </CardDescription>
           </CardHeader>
           

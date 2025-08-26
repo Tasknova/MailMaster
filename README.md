@@ -1,4 +1,16 @@
-# Welcome to your Lovable project
+# Tasknova MailMaster - Email Marketing Platform
+
+A powerful email marketing platform built with modern web technologies, designed to help businesses create, send, and track professional email campaigns.
+
+## Features
+
+- **Gmail Integration**: Send campaigns directly from Gmail
+- **Drag & Drop Editor**: Create beautiful emails with ease
+- **Advanced Analytics**: Track opens, clicks, and engagement
+- **Contact Management**: Organize contacts into lists and segments
+- **Automation**: Set up automated email sequences
+- **Templates**: Professional email templates
+- **A/B Testing**: Optimize your campaigns
 
 ## Project info
 
@@ -59,6 +71,7 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Backend & Database)
 
 ## How can I deploy this project?
 
@@ -71,3 +84,7 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## About Tasknova
+
+Tasknova MailMaster is part of the Tasknova suite of business tools, designed to help modern businesses streamline their operations and grow their customer base through effective email marketing.

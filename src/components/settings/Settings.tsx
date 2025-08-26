@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   User, 
@@ -14,21 +15,36 @@ import {
   Bell, 
   Palette,
   ArrowLeft,
-  Key
+  Key,
+  Save
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import GmailSettings from './GmailSettings';
 
-const Settings = () => {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
-  const [showGmailSettings, setShowGmailSettings] = useState(false);
+interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  profile_photo: string;
+  company?: string;
+}
 
-  const [profile, setProfile] = useState({
-    first_name: user?.user_metadata?.first_name || '',
-    last_name: user?.user_metadata?.last_name || '',
-    email: user?.email || '',
+interface SettingsProps {
+  activeTab?: string;
+}
+
+const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
+  const { user } = useAuth();
+  const [currentTab, setCurrentTab] = useState(activeTab);
+  const [showGmailSettings, setShowGmailSettings] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    email: '',
     phone: '',
     company: '',
     position: ''
@@ -50,12 +66,86 @@ const Settings = () => {
     system_alerts: true
   });
 
-  const saveProfile = () => {
-    // Save profile settings
-    toast({
-      title: "Profile Updated",
-      description: "Your profile settings have been saved successfully.",
-    });
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        // Use fallback data from user metadata
+        const fallbackProfile = {
+          id: user?.id || '',
+          email: user?.email || '',
+          name: user?.user_metadata?.name || user?.user_metadata?.full_name || 'User',
+          profile_photo: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || '',
+          company: ''
+        };
+        setProfile(fallbackProfile);
+        setProfileForm({
+          name: fallbackProfile.name,
+          email: fallbackProfile.email,
+          phone: '',
+          company: fallbackProfile.company || '',
+          position: ''
+        });
+      } else {
+        setProfile(data);
+        setProfileForm({
+          name: data.name || '',
+          email: data.email || '',
+          phone: '',
+          company: data.company || '',
+          position: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user?.id,
+          email: profileForm.email,
+          name: profileForm.name,
+          company: profileForm.company,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local profile state
+      setProfile(prev => prev ? { ...prev, ...profileForm } : null);
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile settings have been saved successfully.",
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save profile settings. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const saveCompany = () => {
@@ -74,9 +164,28 @@ const Settings = () => {
     });
   };
 
+  const getUserInitials = () => {
+    if (profile?.name) {
+      const parts = profile.name.split(' ');
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return profile.name[0]?.toUpperCase() || 'U';
+    }
+    return 'U';
+  };
+
   if (showGmailSettings) {
     return (
       <GmailSettings onBack={() => setShowGmailSettings(false)} />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
@@ -89,7 +198,7 @@ const Settings = () => {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="company">Company</TabsTrigger>
@@ -105,62 +214,69 @@ const Settings = () => {
                 Profile Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input
-                    id="first-name"
-                    value={profile.first_name}
-                    onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input
-                    id="last-name"
-                    value={profile.last_name}
-                    onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
-                  />
+            <CardContent className="space-y-6">
+              {/* Profile Photo Section */}
+              <div className="flex items-center space-x-4">
+                <Avatar className="w-20 h-20">
+                  <AvatarImage src={profile?.profile_photo} alt="Profile" />
+                  <AvatarFallback className="bg-sky-100 text-sky-600 text-lg">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-medium">{profileForm.name}</h3>
+                  <p className="text-sm text-muted-foreground">{profileForm.email}</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  disabled
-                />
-                <p className="text-sm text-muted-foreground">
-                  Email address cannot be changed
-                </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={profileForm.email}
+                    disabled
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Email address cannot be changed
+                  </p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
-                  value={profile.phone}
-                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="company">Company</Label>
                 <Input
                   id="company"
-                  value={profile.company}
-                  onChange={(e) => setProfile({ ...profile, company: e.target.value })}
+                  value={profileForm.company}
+                  onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="position">Position</Label>
                 <Input
                   id="position"
-                  value={profile.position}
-                  onChange={(e) => setProfile({ ...profile, position: e.target.value })}
+                  value={profileForm.position}
+                  onChange={(e) => setProfileForm({ ...profileForm, position: e.target.value })}
                 />
               </div>
-              <Button onClick={saveProfile}>
+              <Button onClick={saveProfile} className="flex items-center gap-2">
+                <Save className="w-4 h-4" />
                 Save Profile
               </Button>
             </CardContent>

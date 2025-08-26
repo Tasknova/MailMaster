@@ -9,10 +9,13 @@ import {
   MousePointer, 
   Calendar,
   Plus,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getStatusColor } from '@/lib/theme';
+import { toast } from '@/hooks/use-toast';
 
 interface Campaign {
   id: string;
@@ -30,15 +33,18 @@ interface Campaign {
 interface CampaignListProps {
   onCreateCampaign: () => void;
   onViewCampaign: (campaign: Campaign) => void;
+  onEditCampaign?: (campaign: Campaign) => void;
+  refreshTrigger?: number;
 }
 
-const CampaignList = ({ onCreateCampaign, onViewCampaign }: CampaignListProps) => {
+const CampaignList = ({ onCreateCampaign, onViewCampaign, onEditCampaign, refreshTrigger }: CampaignListProps) => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCampaigns();
-  }, []);
+  }, [refreshTrigger]); // Refresh when refreshTrigger changes
 
   const fetchCampaigns = async () => {
     try {
@@ -56,6 +62,47 @@ const CampaignList = ({ onCreateCampaign, onViewCampaign }: CampaignListProps) =
       console.error('Error fetching campaigns:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId: string) => {
+    if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingCampaignId(campaignId);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', campaignId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Campaign Deleted",
+        description: "The campaign has been successfully deleted.",
+      });
+
+      // Refresh the campaigns list
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      toast({
+        title: "Error Deleting Campaign",
+        description: error instanceof Error ? error.message : "Failed to delete campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingCampaignId(null);
+    }
+  };
+
+  const handleEditCampaign = (campaign: Campaign) => {
+    if (onEditCampaign) {
+      onEditCampaign(campaign);
     }
   };
 
@@ -182,10 +229,28 @@ const CampaignList = ({ onCreateCampaign, onViewCampaign }: CampaignListProps) =
                       View Details
                     </Button>
                     {campaign.status === 'draft' && (
-                      <Button variant="default" size="sm">
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => handleEditCampaign(campaign)}
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
                         Edit
                       </Button>
                     )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleDeleteCampaign(campaign.id)}
+                      disabled={deletingCampaignId === campaign.id}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {deletingCampaignId === campaign.id ? (
+                        <div className="animate-spin h-4 w-4" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardContent>

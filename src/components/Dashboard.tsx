@@ -1,19 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Mail, 
   Users, 
   BarChart3, 
   TrendingUp,
   Eye,
-  MousePointer
+  MousePointer,
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 
 interface DashboardProps {
-  onNavigate: (view: 'dashboard' | 'campaigns' | 'contacts') => void;
+  onNavigate: (view: 'dashboard' | 'campaigns' | 'contacts' | 'settings', settingsTab?: string) => void;
 }
 
 const Dashboard = ({ onNavigate }: DashboardProps) => {
@@ -25,10 +28,16 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
     sent: 0
   });
   const [loading, setLoading] = useState(true);
+  const [gmailConfigured, setGmailConfigured] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
       fetchStats();
+      checkGmailConfiguration();
+      checkIfNewUser();
+      fetchUserProfile();
     }
   }, [user]);
 
@@ -73,27 +82,94 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
     }
   };
 
+  const checkGmailConfiguration = async () => {
+    try {
+      // Check if user has Gmail credentials
+      const { data: credentials, error } = await supabase
+        .from('gmail_credentials')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
+
+      setGmailConfigured(!!credentials && !error);
+    } catch (error) {
+      console.error('Error checking Gmail configuration:', error);
+      setGmailConfigured(false);
+    }
+  };
+
+  const checkIfNewUser = async () => {
+    try {
+      // Check if user has any campaigns or contact lists
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user?.id)
+        .limit(1);
+
+      const { data: lists } = await supabase
+        .from('contact_lists')
+        .select('id')
+        .eq('user_id', user?.id)
+        .limit(1);
+
+      // Consider user new if they have no campaigns, no lists, and no Gmail configured
+      setIsNewUser((!campaigns || campaigns.length === 0) && 
+                   (!lists || lists.length === 0) && 
+                   !gmailConfigured);
+    } catch (error) {
+      console.error('Error checking if new user:', error);
+      setIsNewUser(true);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', user?.id)
+        .single();
+
+      if (data) {
+        setUserProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const getUserDisplayName = () => {
+    if (userProfile?.name) {
+      return userProfile.name;
+    }
+    
+    // Fallback to user metadata
+    return user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email || 'User';
+  };
+
   const quickActions = [
     {
       title: "Create Campaign",
       description: "Build and send email campaigns",
       icon: Mail,
       action: () => onNavigate('campaigns'),
-      color: "bg-blue-500"
+      color: "bg-sky-500"
     },
     {
       title: "Manage Contacts",
       description: "Organize your email lists",
       icon: Users,
       action: () => onNavigate('contacts'),
-      color: "bg-blue-600"
+      color: "bg-sky-600"
     },
     {
       title: "View Analytics",
       description: "Track campaign performance",
       icon: BarChart3,
       action: () => onNavigate('campaigns'),
-      color: "bg-blue-700"
+      color: "bg-sky-700"
     }
   ];
 
@@ -130,11 +206,33 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
     <div className="space-y-6">
       {/* Welcome Section */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {getUserDisplayName()}!</h1>
         <p className="text-muted-foreground">
           Here's what's happening with your email campaigns today.
         </p>
       </div>
+
+      {/* Gmail Configuration Warning for New Users */}
+      {isNewUser && !gmailConfigured && (
+        <Alert className="border-orange-200 bg-orange-50">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <strong>Gmail not configured!</strong> To send email campaigns, you need to connect your Gmail account.
+              </div>
+              <Button 
+                onClick={() => onNavigate('settings', 'integrations')}
+                size="sm"
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Configure Gmail
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

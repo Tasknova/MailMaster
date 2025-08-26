@@ -15,7 +15,8 @@ import {
   Building,
   ArrowRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Home
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
@@ -179,25 +180,43 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="w-full max-w-md">
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
-            <Mail className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">MailMaster</h1>
-          <p className="text-gray-600">Professional Email Marketing Platform</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 p-4 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-100/20 to-blue-100/20"></div>
+      <div className="absolute top-10 left-10 w-32 h-32 bg-sky-200/30 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-10 right-10 w-40 h-40 bg-blue-200/30 rounded-full blur-3xl"></div>
+      
+      {/* Home button */}
+      <div className="absolute top-6 left-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 shadow-lg"
+          onClick={() => window.location.href = '/'}
+        >
+          <Home className="w-4 h-4 mr-2" />
+          Home
+        </Button>
+      </div>
+      
+      <div className="w-full max-w-md relative z-10">
+                 {/* Logo and Title */}
+         <div className="text-center mb-8">
+           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl mb-6 shadow-lg">
+             <Mail className="w-10 h-10 text-white" />
+           </div>
+           <h1 className="text-4xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-sky-600 to-sky-800 bg-clip-text text-transparent">MailMaster</h1>
+           <p className="text-gray-600 text-lg">Professional Email Marketing Platform</p>
+         </div>
 
-        {/* Auth Card */}
-        <Card className="shadow-xl">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">Welcome to MailMaster</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Manage your email campaigns with ease
-            </p>
-          </CardHeader>
+                 {/* Auth Card */}
+         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+           <CardHeader className="text-center pb-6">
+             <CardTitle className="text-2xl font-bold text-gray-900">Welcome to MailMaster</CardTitle>
+             <p className="text-base text-muted-foreground">
+               Manage your email campaigns with ease
+             </p>
+           </CardHeader>
           
           <CardContent className="space-y-6">
             {/* Error Alert */}
@@ -208,26 +227,26 @@ const Login = () => {
               </Alert>
             )}
 
-            {/* Google Sign In */}
-            <div className="space-y-4">
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                )}
-                Continue with Google
-              </Button>
+                         {/* Google Sign In */}
+             <div className="space-y-4">
+               <Button 
+                 variant="outline" 
+                 className="w-full h-12 border-2 border-gray-200 hover:border-sky-300 hover:bg-sky-50 transition-all duration-200" 
+                 onClick={handleGoogleSignIn}
+                 disabled={loading}
+               >
+                 {loading ? (
+                   <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                 ) : (
+                   <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                     <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                     <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                     <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                   </svg>
+                 )}
+                 <span className="font-semibold">Continue with Google</span>
+               </Button>
               
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -254,15 +273,15 @@ const Login = () => {
                     <Label htmlFor="signin-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signin-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={signInData.email}
-                        onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
-                        className="pl-10"
-                        required
-                      />
+                                             <Input
+                         id="signin-email"
+                         type="email"
+                         placeholder="Enter your email"
+                         value={signInData.email}
+                         onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
+                         className="pl-10 h-12 border-2 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20 transition-all duration-200"
+                         required
+                       />
                     </div>
                   </div>
 
@@ -270,15 +289,15 @@ const Login = () => {
                     <Label htmlFor="signin-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signin-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={signInData.password}
-                        onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
-                        className="pl-10 pr-10"
-                        required
-                      />
+                                             <Input
+                         id="signin-password"
+                         type={showPassword ? "text" : "password"}
+                         placeholder="Enter your password"
+                         value={signInData.password}
+                         onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
+                         className="pl-10 pr-10 h-12 border-2 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20 transition-all duration-200"
+                         required
+                       />
                       <Button
                         type="button"
                         variant="ghost"
@@ -295,14 +314,14 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <ArrowRight className="w-4 h-4 mr-2" />
-                    )}
-                    Sign In
-                  </Button>
+                                     <Button type="submit" className="w-full h-12 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200" disabled={loading}>
+                     {loading ? (
+                       <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                     ) : (
+                       <ArrowRight className="w-5 h-5 mr-3" />
+                     )}
+                     Sign In
+                   </Button>
                 </form>
               </TabsContent>
 
@@ -430,42 +449,42 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <User className="w-4 h-4 mr-2" />
-                    )}
-                    Create Account
-                  </Button>
+                                     <Button type="submit" className="w-full h-12 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200" disabled={loading}>
+                     {loading ? (
+                       <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                     ) : (
+                       <User className="w-5 h-5 mr-3" />
+                     )}
+                     Create Account
+                   </Button>
                 </form>
               </TabsContent>
             </Tabs>
 
-            {/* Features */}
-            <div className="pt-6 border-t">
-              <div className="text-center space-y-3">
-                <p className="text-sm text-muted-foreground">What you'll get with MailMaster:</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Badge variant="secondary" className="text-xs">Email Campaigns</Badge>
-                  <Badge variant="secondary" className="text-xs">Contact Management</Badge>
-                  <Badge variant="secondary" className="text-xs">Template Editor</Badge>
-                  <Badge variant="secondary" className="text-xs">Analytics</Badge>
-                  <Badge variant="secondary" className="text-xs">Gmail Integration</Badge>
-                </div>
-              </div>
-            </div>
+                         {/* Features */}
+             <div className="pt-8 border-t border-gray-200">
+               <div className="text-center space-y-4">
+                 <p className="text-sm font-medium text-gray-700">What you'll get with MailMaster:</p>
+                 <div className="flex flex-wrap justify-center gap-3">
+                   <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">Email Campaigns</Badge>
+                   <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">Contact Management</Badge>
+                   <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">Template Editor</Badge>
+                   <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">Analytics</Badge>
+                   <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">Gmail Integration</Badge>
+                 </div>
+               </div>
+             </div>
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <div className="text-center mt-6">
-          <p className="text-xs text-muted-foreground">
-            By signing up, you agree to our Terms of Service and Privacy Policy
-          </p>
-        </div>
-      </div>
-    </div>
+                 {/* Footer */}
+         <div className="text-center mt-8">
+           <p className="text-xs text-muted-foreground">
+             By signing up, you agree to our Terms of Service and Privacy Policy
+           </p>
+         </div>
+       </div>
+     </div>
   );
 };
 

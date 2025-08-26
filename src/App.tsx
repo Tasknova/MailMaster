@@ -22,6 +22,10 @@ const App = () => (
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/dashboard" element={<Index />} />
+            <Route path="/campaigns" element={<Index />} />
+            <Route path="/contacts" element={<Index />} />
+            <Route path="/templates" element={<Index />} />
+            <Route path="/settings" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/gmail-callback" element={<GmailCallback />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

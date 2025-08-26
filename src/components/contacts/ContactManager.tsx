@@ -20,9 +20,11 @@ interface ContactList {
 
 interface ContactManagerProps {
   onViewContacts?: (listId: string) => void;
+  showCreateListOnMount?: boolean;
+  onShowCreateListComplete?: () => void;
 }
 
-const ContactManager = ({ onViewContacts }: ContactManagerProps) => {
+const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowCreateListComplete }: ContactManagerProps) => {
   const { user } = useAuth();
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [showCreateList, setShowCreateList] = useState(false);
@@ -50,6 +52,16 @@ const ContactManager = ({ onViewContacts }: ContactManagerProps) => {
       fetchContactLists();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (showCreateListOnMount) {
+      setShowCreateList(true);
+      // Call the callback to reset the flag
+      if (onShowCreateListComplete) {
+        onShowCreateListComplete();
+      }
+    }
+  }, [showCreateListOnMount, onShowCreateListComplete]);
 
   const fetchContactLists = async () => {
     try {

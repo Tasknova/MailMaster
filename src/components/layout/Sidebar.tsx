@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   LayoutDashboard, 
   Mail, 
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SidebarProps {
   currentView: string;
@@ -21,8 +23,47 @@ interface SidebarProps {
   user: any;
 }
 
+interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  profile_photo: string;
+}
+
 const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
   const { signOut } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        // Use fallback data from user metadata
+        setProfile({
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.name || user.user_metadata?.full_name || 'User',
+          profile_photo: user.user_metadata?.avatar_url || user.user_metadata?.picture || ''
+        });
+      } else {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -40,36 +81,23 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
     }
   };
 
-  // Debug function to check user data
-  const debugUserData = () => {
-    console.log('User object:', user);
-    console.log('User metadata:', user?.user_metadata);
-    console.log('User app metadata:', user?.app_metadata);
-    console.log('User raw app metadata:', user?.raw_app_meta_data);
-  };
-
   // Get user display name
   const getUserDisplayName = () => {
-    // Try different possible locations for user name
-    const firstName = user?.user_metadata?.first_name || 
-                     user?.user_metadata?.name?.split(' ')[0] ||
-                     user?.raw_app_meta_data?.provider === 'google' ? user?.user_metadata?.full_name?.split(' ')[0] : null;
-    
-    const lastName = user?.user_metadata?.last_name || 
-                    user?.user_metadata?.name?.split(' ')[1] ||
-                    user?.raw_app_meta_data?.provider === 'google' ? user?.user_metadata?.full_name?.split(' ')[1] : null;
-
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
-    } else if (firstName) {
-      return firstName;
-    } else if (user?.user_metadata?.full_name) {
-      return user.user_metadata.full_name;
-    } else if (user?.user_metadata?.name) {
-      return user.user_metadata.name;
+    if (profile?.name) {
+      return profile.name;
     }
     
-    return user?.email || 'User';
+    // Fallback to user metadata
+    return user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email || 'User';
+  };
+
+  const getUserInitials = () => {
+    const name = getUserDisplayName();
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name[0]?.toUpperCase() || 'U';
   };
 
   const menuItems = [
@@ -102,39 +130,18 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
       label: 'Settings',
       icon: Settings,
       description: 'Account and preferences'
-    },
-    {
-      id: 'test-width',
-      label: 'Width Test',
-      icon: Settings,
-      description: 'Debug width issues'
-    },
-    {
-      id: 'debug-width',
-      label: 'Debug Width',
-      icon: Settings,
-      description: 'Raw width debug'
     }
   ];
 
   return (
-    <div style={{ 
-      width: '256px', 
-      backgroundColor: 'white', 
-      borderRight: '1px solid #e5e7eb', 
-      display: 'flex', 
-      flexDirection: 'column',
-      flexShrink: 0
-    }}>
+    <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Mail className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Tasknova" className="w-20 h-20" />
           <div>
             <h1 className="text-lg font-semibold text-gray-900">MailMaster</h1>
-            <p className="text-xs text-gray-500">Email Marketing</p>
+            <p className="text-xs text-gray-500">Email Marketing Platform</p>
           </div>
         </div>
       </div>
@@ -144,9 +151,12 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
         <Card className="bg-gray-50">
           <CardContent className="p-3">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-blue-600" />
-              </div>
+              <Avatar className="w-8 h-8">
+                <AvatarImage src={profile?.profile_photo} alt={getUserDisplayName()} />
+                <AvatarFallback className="bg-sky-100 text-sky-600 text-xs">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {getUserDisplayName()}
@@ -169,7 +179,7 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
               key={item.id}
               variant={isActive ? "default" : "ghost"}
               className={`w-full justify-start h-auto p-3 ${
-                isActive ? "bg-blue-600 text-white" : "hover:bg-gray-100"
+                isActive ? "bg-sky-600 text-white" : "hover:bg-gray-100"
               }`}
               onClick={() => onNavigate(item.id)}
             >
@@ -180,7 +190,7 @@ const Sidebar = ({ currentView, onNavigate, user }: SidebarProps) => {
                     <span className="font-medium">{item.label}</span>
                     {isActive && <ChevronRight className="w-4 h-4" />}
                   </div>
-                  <p className={`text-xs ${isActive ? "text-blue-100" : "text-gray-500"}`}>
+                  <p className={`text-xs ${isActive ? "text-sky-100" : "text-gray-500"}`}>
                     {item.description}
                   </p>
                 </div>

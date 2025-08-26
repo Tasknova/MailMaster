@@ -454,7 +454,7 @@ const TemplateCustomizer = ({ template, onBack, onSave, isOpen, onClose }: Templ
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-background rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col">
+              <div className="bg-background rounded-lg w-full h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-4">

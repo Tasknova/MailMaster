@@ -53,21 +53,21 @@ const LandingPage = () => {
       name: "Sarah Johnson",
       role: "Marketing Manager",
       company: "TechCorp",
-      content: "Email Master has transformed our email marketing. The analytics are incredible and our open rates have increased by 40%.",
+                    content: "MailMaster has transformed our email marketing. The analytics are incredible and our open rates have increased by 40%.",
       rating: 5
     },
     {
       name: "Mike Chen",
       role: "Founder",
       company: "StartupXYZ",
-      content: "Easy to use, powerful features, and great support. Perfect for our growing business needs.",
+      content: "Easy to use, powerful features, and great support from Tasknova. Perfect for our growing business needs.",
       rating: 5
     },
     {
       name: "Emily Rodriguez",
       role: "Digital Marketing",
       company: "E-commerce Plus",
-      content: "The automation features have saved us hours every week. Highly recommended!",
+      content: "The automation features have saved us hours every week. Tasknova's platform is highly recommended!",
       rating: 5
     }
   ];
@@ -127,11 +127,8 @@ const LandingPage = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Mail className="w-4 h-4 text-white" />
-              </div>
               <h1 className="text-xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-                Email Master
+                MailMaster
               </h1>
             </div>
                                   <div className="flex items-center gap-4">
@@ -150,7 +147,7 @@ const LandingPage = () => {
             <span className="bg-gradient-hero bg-clip-text text-transparent"> Email Marketing</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Create stunning email campaigns, manage your contacts, and track results with our powerful email marketing platform.
+            Create stunning email campaigns, manage your contacts, and track results with Tasknova's powerful email marketing platform.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="hero" className="text-lg px-8 py-6" onClick={() => navigate('/dashboard')}>
@@ -171,7 +168,7 @@ const LandingPage = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Everything you need to succeed</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Powerful features designed to help you create, send, and track email campaigns that convert.
+              Powerful features designed to help you create, send, and track email campaigns that convert with Tasknova's expertise.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -198,7 +195,7 @@ const LandingPage = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Loved by marketers worldwide</h2>
             <p className="text-xl text-muted-foreground">
-              See what our customers have to say about Email Master
+              See what our customers have to say about Tasknova MailMaster
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -281,7 +278,7 @@ const LandingPage = () => {
             Ready to boost your email marketing?
           </h2>
           <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
-            Join thousands of businesses that trust Email Master for their email marketing needs.
+            Join thousands of businesses that trust Tasknova MailMaster for their email marketing needs.
           </p>
           <Button size="lg" variant="secondary" className="text-lg px-8 py-6" onClick={() => navigate('/dashboard')}>
             Start Your Free Trial
@@ -296,13 +293,10 @@ const LandingPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <Mail className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-xl font-bold">Email Master</h3>
+                <h3 className="text-xl font-bold">MailMaster</h3>
               </div>
               <p className="text-muted-foreground">
-                The complete email marketing solution for modern businesses.
+                The complete email marketing solution for modern businesses, powered by Tasknova.
               </p>
             </div>
             <div>
@@ -334,7 +328,7 @@ const LandingPage = () => {
             </div>
           </div>
           <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; 2024 Email Master. All rights reserved.</p>
+            <p>&copy; 2024 MailMaster. All rights reserved.</p>
           </div>
         </div>
       </footer>

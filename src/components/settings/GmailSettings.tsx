@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Mail, 
   Key, 
@@ -14,7 +15,10 @@ import {
   ExternalLink,
   Save,
   RefreshCw,
-  Copy
+  Copy,
+  ArrowRight,
+  User,
+  Shield
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import GmailService from '@/services/gmailService';
@@ -26,14 +30,16 @@ interface GmailSettingsProps {
 }
 
 const GmailSettings = ({ onBack }: GmailSettingsProps) => {
-  const { user } = useAuth();
+  const { user, configureGmail } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [gmailService, setGmailService] = useState<GmailService | null>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
     loadSettings();
+    checkIfNewUser();
   }, []);
 
   const loadSettings = async () => {
@@ -47,6 +53,70 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
       console.error('Error loading Gmail settings:', error);
     } finally {
       setIsLoadingSettings(false);
+    }
+  };
+
+  const checkIfNewUser = async () => {
+    try {
+      // Check if user has any campaigns or contact lists
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user?.id)
+        .limit(1);
+
+      const { data: lists } = await supabase
+        .from('contact_lists')
+        .select('id')
+        .eq('user_id', user?.id)
+        .limit(1);
+
+      // Check if user has Gmail credentials
+      const { data: credentials } = await supabase
+        .from('gmail_credentials')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
+
+      // Consider user new if they have no campaigns, no lists, and no Gmail configured
+      setIsNewUser((!campaigns || campaigns.length === 0) && 
+                   (!lists || lists.length === 0) && 
+                   !credentials);
+    } catch (error) {
+      console.error('Error checking if new user:', error);
+      setIsNewUser(true);
+    }
+  };
+
+  const connectGmail = async () => {
+    setIsLoading(true);
+    try {
+      // Use the configureGmail function which includes Gmail permissions
+      const { error } = await configureGmail();
+      
+      if (error) {
+        console.error('Gmail connection error:', error);
+        toast({
+          title: "Connection Failed",
+          description: error.message || "Failed to connect Gmail account",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "🎉 Gmail Connected Successfully!",
+          description: "Your Gmail account is now connected. You can create and send email campaigns!",
+        });
+      }
+    } catch (error) {
+      console.error('Error connecting Gmail:', error);
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect Gmail account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,9 +179,9 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
     try {
       await gmailService.sendEmail({
         to: ['test@example.com'],
-        subject: 'Test Email from MailMaster',
+        subject: 'Test Email from Tasknova MailMaster',
         htmlContent: '<p>This is a test email to verify Gmail API connection.</p>',
-        fromName: 'MailMaster Test'
+        fromName: 'Tasknova MailMaster Test'
       });
       
       toast({
@@ -130,62 +200,13 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
     }
   };
 
-  // Debug function to check environment variables and authentication status
-  const debugAuthStatus = async () => {
-    console.log('=== Gmail Authentication Debug ===');
-    console.log('Environment Variables:');
-    console.log('VITE_GOOGLE_CLIENT_ID:', import.meta.env.VITE_GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
-    console.log('VITE_GOOGLE_CLIENT_SECRET:', import.meta.env.VITE_GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
-    console.log('Redirect URI:', gmailService?.getRedirectUri());
-    
-    console.log('\nCurrent Authentication Status:');
-    console.log('isAuthenticated:', isAuthenticated);
-    
-    if (gmailService) {
-      const authStatus = await gmailService.getAuthStatus();
-      console.log('GmailService auth status:', authStatus);
-    }
-    
-    // Check Supabase session
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log('\nSupabase Session:');
-    console.log('Has session:', !!session);
-    console.log('Has provider token:', !!session?.provider_token);
-    console.log('Provider:', session?.user?.app_metadata?.provider);
-    
-    // Check database credentials
-    const { data: credentials, error } = await supabase
-      .from('gmail_credentials')
-      .select('*')
-      .eq('user_id', user?.id)
-      .eq('is_active', true)
-      .single();
-    
-    console.log('\nDatabase Credentials:');
-    console.log('Has credentials:', !!credentials);
-    console.log('Credentials error:', error);
-    if (credentials) {
-      console.log('Has access token:', !!credentials.access_token);
-      console.log('Has refresh token:', !!credentials.refresh_token);
-      console.log('Token expires at:', credentials.token_expires_at);
-    }
-    
-    console.log('=== End Debug ===');
-    
-    toast({
-      title: "Debug Info Logged",
-      description: "Check the browser console for detailed authentication information.",
-    });
-  };
-
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gmail API Settings</h1>
+          <h1 className="text-3xl font-bold">Gmail Configuration</h1>
           <p className="text-muted-foreground">
-            Configure Gmail API to send emails through your Gmail account
+            Connect your Gmail account to send email campaigns
           </p>
         </div>
         {onBack && (
@@ -195,74 +216,32 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
         )}
       </div>
 
-      {/* Setup Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            Setup Instructions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                         <h3 className="font-semibold text-blue-800 mb-2">How Gmail Authentication Works:</h3>
-             <p className="text-sm text-blue-700 mb-3">
-               This app uses Supabase's built-in Google OAuth for authentication. The permissions you grant depend on whether you're signing up or logging in.
-             </p>
-             <div className="text-sm text-blue-700 space-y-1">
-               <p><strong>Signup vs Login:</strong></p>
-               <ul className="list-disc list-inside space-y-1">
-                 <li><strong>Signup:</strong> You'll be asked to grant Gmail permissions (one-time)</li>
-                 <li><strong>Login:</strong> No permission prompts - uses existing permissions</li>
-                 <li><strong>Gmail Settings:</strong> Only prompts if additional permissions are needed</li>
-               </ul>
-             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Google OAuth Setup */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="w-5 h-5" />
-            Gmail Integration Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                                 <h4 className="font-medium text-green-900 mb-2">Using Supabase OAuth</h4>
-                 <p className="text-sm text-green-800 mb-3">
-                   This app uses Supabase's Google OAuth integration, which means:
-                 </p>
-                 <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
-                   <li>No separate Google Cloud Console setup required</li>
-                   <li>Uses the same Google account you signed up with</li>
-                   <li>Automatically handles token management and refresh</li>
-                   <li>Secure and managed by Supabase</li>
-                 </ul>
-              </div>
+      {/* New User Welcome */}
+      {isNewUser && !isAuthenticated && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <User className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <div className="space-y-2">
+              <p><strong>Welcome to MailMaster!</strong> To get started with email campaigns, you need to connect your Gmail account.</p>
+              <p className="text-sm">Your profile information has already been imported from Google. Now we need Gmail permissions to send emails.</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </AlertDescription>
+        </Alert>
+      )}
 
-      {/* Authentication Status */}
+      {/* Gmail Connection Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="w-5 h-5" />
-            Authentication Status
+            Gmail Connection Status
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoadingSettings ? (
             <div className="flex items-center justify-center py-4">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-              <span>Loading authentication status...</span>
+              <span>Loading connection status...</span>
             </div>
           ) : (
             <>
@@ -272,33 +251,87 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
                   {isAuthenticated ? (
                     <Badge variant="default" className="bg-green-100 text-green-800">
                       <CheckCircle className="w-3 h-3 mr-1" />
-                      Authenticated
+                      Connected
                     </Badge>
                   ) : (
                     <Badge variant="secondary">
                       <XCircle className="w-3 h-3 mr-1" />
-                      Not Authenticated
+                      Not Connected
                     </Badge>
                   )}
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                {!isAuthenticated ? (
+              {!isAuthenticated ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Shield className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-blue-900 mb-2">Gmail Permissions Required</h4>
+                        <p className="text-sm text-blue-800 mb-3">
+                          To send email campaigns, we need additional Gmail permissions:
+                        </p>
+                        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                          <li><strong>Send emails on your behalf</strong> - Required for email campaigns</li>
+                          <li><strong>No access to your emails</strong> - We only send, never read</li>
+                          <li><strong>Secure token storage</strong> - Managed by Supabase</li>
+                          <li><strong>Revocable anytime</strong> - You can disconnect at any time</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
                   <Button 
-                    onClick={authenticate} 
+                    onClick={connectGmail} 
                     disabled={isLoading}
-                    className="flex-1"
+                    size="lg"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     {isLoading ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
                     ) : (
-                      <Mail className="w-4 h-4 mr-2" />
+                      <Mail className="w-5 h-5 mr-2" />
                     )}
-                    Authenticate with Google
+                    Connect Your Gmail Account
+                    <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                ) : (
-                  <>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    You'll be redirected to Google to grant Gmail sending permissions
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-green-900 mb-2">✅ Gmail Successfully Connected!</h4>
+                        <p className="text-sm text-green-800">
+                          Your Gmail account is connected and ready to send email campaigns. 
+                          You can now create and send email campaigns to your contacts.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-blue-900 mb-2">What's Next?</h4>
+                        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                          <li>Create your first email campaign</li>
+                          <li>Import your contact lists</li>
+                          <li>Design beautiful email templates</li>
+                          <li>Track campaign performance</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
                     <Button 
                       onClick={testConnection} 
                       disabled={isLoading}
@@ -314,81 +347,50 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
                       className="flex-1"
                     >
                       <XCircle className="w-4 h-4 mr-2" />
-                      Logout
+                      Disconnect
                     </Button>
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
               
-              {/* Debug Button */}
-              <div className="mt-2">
-                <Button 
-                  onClick={debugAuthStatus} 
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                >
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                  Debug Authentication Status
-                </Button>
-              </div>
-
-              {isAuthenticated && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <p className="text-sm text-green-800">
-                    ✅ Gmail API is connected and ready to send emails!
-                  </p>
-                </div>
-              )}
-
-              {!isAuthenticated && !isLoadingSettings && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800">
-                    ℹ️ Click "Authenticate with Google" to grant Gmail sending permissions and get your profile information.
-                  </p>
-                </div>
-              )}
+               {/* Help & Troubleshooting */}
+               <Card>
+                 <CardHeader>
+                   <CardTitle>Help & Troubleshooting</CardTitle>
+                 </CardHeader>
+                 <CardContent className="space-y-3">
+                   <div className="text-sm space-y-2">
+                     <p><strong>How it works:</strong></p>
+                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                       <li><strong>Signup:</strong> Only requests basic profile information (name, email, photo)</li>
+                       <li><strong>Gmail Configuration:</strong> Requests additional Gmail sending permissions</li>
+                       <li><strong>Security:</strong> We never access your personal emails or contacts</li>
+                       <li><strong>Control:</strong> You can disconnect Gmail anytime from settings</li>
+                     </ul>
+                   </div>
+                   
+                   <div className="text-sm space-y-2">
+                     <p><strong>Common Issues:</strong></p>
+                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                       <li>If connection fails, try refreshing the page and trying again</li>
+                       <li>Make sure you're using the same Google account you signed up with</li>
+                       <li>During Gmail configuration, you'll be asked for sending permissions</li>
+                       <li>If you need to change your Google account, contact support</li>
+                     </ul>
+                   </div>
+                   
+                   <div className="flex gap-2">
+                     <Button variant="outline" size="sm" asChild>
+                       <a href="https://developers.google.com/gmail/api/guides" target="_blank" rel="noopener noreferrer">
+                         <ExternalLink className="w-4 h-4 mr-2" />
+                         Gmail API Docs
+                       </a>
+                     </Button>
+                   </div>
+                 </CardContent>
+               </Card>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Help & Troubleshooting */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Help & Troubleshooting</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-sm space-y-2">
-            <p><strong>Common Issues:</strong></p>
-                         <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-               <li>If authentication fails, try signing out and signing back in</li>
-               <li>Make sure you're using the same Google account you signed up with</li>
-               <li>During signup, you'll be asked for Gmail permissions (one-time only)</li>
-               <li>During login, no permission prompts will appear</li>
-               <li>If you need additional permissions later, use the "Authenticate with Google" button</li>
-               <li>Contact support if you need to change your Google account</li>
-             </ul>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <a href="https://developers.google.com/gmail/api/guides" target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Gmail API Docs
-              </a>
-            </Button>
-                         <Button variant="outline" size="sm" onClick={async () => {
-               console.log('Debug: User data');
-               console.log('User:', user);
-               console.log('User metadata:', user?.user_metadata);
-               const session = await supabase.auth.getSession();
-               console.log('Session:', session);
-             }}>
-              <AlertCircle className="w-4 h-4 mr-2" />
-              Debug User Data
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
