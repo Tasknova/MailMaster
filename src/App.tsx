@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./components/LandingPage";
 import GmailCallback from "./pages/GmailCallback";
+import TemplatePreviewPage from "./pages/TemplatePreviewPage";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/campaigns" element={<Index />} />
             <Route path="/contacts" element={<Index />} />
             <Route path="/templates" element={<Index />} />
+            <Route path="/template-preview/:templateId" element={<TemplatePreviewPage />} />
             <Route path="/settings" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/gmail-callback" element={<GmailCallback />} />

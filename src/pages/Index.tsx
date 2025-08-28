@@ -9,18 +9,57 @@ import ContactManager from '@/components/contacts/ContactManager';
 import ContactDetails from '@/components/contacts/ContactDetails';
 import Settings from '@/components/settings/Settings';
 import TemplateManager from "@/components/templates/TemplateManager";
+import TemplateViewer from '@/components/templates/TemplateViewer';
+
 
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
 import Login from './Login';
 import { supabase } from '@/integrations/supabase/client';
+import { updateUserProfileFromGoogle } from '@/lib/utils';
 
 const Index = () => {
   const { user, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  // Validate user session
+  useEffect(() => {
+    const validateSession = async () => {
+      if (user && !loading) {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error || !session || !session.user) {
+            console.log('Invalid session, redirecting to login');
+            await supabase.auth.signOut();
+            navigate('/auth');
+          }
+        } catch (error) {
+          console.error('Session validation error:', error);
+          await supabase.auth.signOut();
+          navigate('/auth');
+        }
+      }
+    };
+
+    validateSession();
+  }, [user, loading, navigate]);
+
+  // Debug: Log user state
+  useEffect(() => {
+    if (!loading) {
+      console.log('Auth state:', { user: user?.id, loading, hasUser: !!user });
+    }
+  }, [user, loading]);
   
   // Initialize state based on current URL path
   const getInitialView = () => {
@@ -34,40 +73,33 @@ const Index = () => {
     return 'dashboard'; // Default to dashboard
   };
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'templates' | 'settings'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'campaigns' | 'campaign-builder' | 'campaign-details' | 'contacts' | 'contact-details' | 'templates' | 'settings' | 'template-viewer'>(getInitialView);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [selectedContactListId, setSelectedContactListId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [activeSettingsTab, setActiveSettingsTab] = useState<string>('profile');
   const [showCreateListOnMount, setShowCreateListOnMount] = useState(false);
   const [refreshCampaigns, setRefreshCampaigns] = useState(0);
   const [selectedContactId, setSelectedContactId] = useState<string>('');
+  const [profileChecked, setProfileChecked] = useState(false);
 
-  // Sync URL with current view
+
+  // Sync URL with current view - simplified to prevent infinite loops
   useEffect(() => {
     const path = location.pathname;
-    const currentPath = getPathForView(currentView);
-    
-    // Only sync URL for main views, not sub-views like campaign-builder
-    if (path !== currentPath && !currentView.includes('-')) {
-      navigate(currentPath, { replace: true });
-    }
-  }, [currentView, navigate, location.pathname]);
-
-  // Update view when URL changes
-  useEffect(() => {
     const newView = getInitialView();
-    if (newView !== currentView && !currentView.includes('-')) {
+    
+    // Only update if the view actually changed and it's not a sub-view
+    if (newView !== currentView && !currentView.includes('-') && !newView.includes('-')) {
       setCurrentView(newView);
     }
-  }, [location.pathname]);
+  }, [location.pathname]); // Removed currentView and navigate from dependencies
 
   // Ensure profile exists for authenticated users
   useEffect(() => {
     const ensureProfileExists = async () => {
-      if (user && !loading) {
+      if (user && !loading && user.id) {
         try {
-          console.log('Checking if profile exists for user:', user.email);
-          
           // Check if profile exists
           const { data: existingProfile, error: fetchError } = await supabase
             .from('profiles')
@@ -77,12 +109,9 @@ const Index = () => {
 
           if (fetchError && fetchError.code === 'PGRST116') {
             // Profile doesn't exist, create it
-            console.log('Profile not found, creating new profile...');
             await updateUserProfileFromGoogle(user);
           } else if (fetchError) {
             console.error('Error checking profile:', fetchError);
-          } else {
-            console.log('Profile already exists');
           }
         } catch (error) {
           console.error('Error ensuring profile exists:', error);
@@ -91,7 +120,9 @@ const Index = () => {
     };
 
     ensureProfileExists();
-  }, [user, loading]);
+  }, [user?.id, loading]); // Only depend on user.id instead of entire user object
+
+
 
   const getPathForView = (view: string) => {
     switch (view) {
@@ -115,7 +146,10 @@ const Index = () => {
       const access_token = searchParams.get('access_token');
       const refresh_token = searchParams.get('refresh_token');
 
-      console.log('OAuth callback detected:', { code: !!code, error: !!error, access_token: !!access_token, refresh_token: !!refresh_token });
+      // OAuth callback detected
+      if (code || error || access_token || refresh_token) {
+        console.log('OAuth callback detected:', { code, error, access_token: !!access_token, refresh_token: !!refresh_token });
+      }
 
       // Immediately clear URL parameters for security
       if (code || error || access_token || refresh_token) {
@@ -125,8 +159,6 @@ const Index = () => {
       // Handle Supabase OAuth callback
       if (access_token && refresh_token) {
         try {
-          console.log('Processing OAuth tokens...');
-          
           // Validate tokens before using them
           if (!access_token.startsWith('eyJ') || !refresh_token.startsWith('eyJ')) {
             throw new Error('Invalid token format');
@@ -142,13 +174,9 @@ const Index = () => {
             // Redirect to login with error
             window.location.href = '/?error=' + encodeURIComponent(error.message);
           } else {
-            console.log('Session set successfully');
-            
             // Get the current session to access user data
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-              console.log('User authenticated:', session.user.email);
-              
               // Always update user profile with Google data (basic info)
               await updateUserProfileFromGoogle(session.user);
               
@@ -157,34 +185,15 @@ const Index = () => {
                 session.provider_token.includes('gmail.send');
               
               if (hasGmailScope) {
-                // This was a Gmail configuration flow
-                console.log('Gmail configuration flow detected');
+                // Create Gmail credentials instead of updating profile
                 await createGmailCredentials(session.user);
-                toast({
-                  title: "🎉 Gmail Connected Successfully!",
-                  description: "Your Gmail account is now connected. You can create and send email campaigns!",
-                });
-              } else {
-                // This was a basic signup flow
-                console.log('Basic signup completed - Gmail can be configured later');
-                toast({
-                  title: "Welcome to MailMaster!",
-                  description: "Your account has been created successfully. You can now configure Gmail to send email campaigns.",
-                });
               }
             }
           }
-          // Success - user is now authenticated, no need to redirect
         } catch (error) {
-          console.error('Error handling auth callback:', error);
-          window.location.href = '/?error=' + encodeURIComponent('Authentication failed');
+          console.error('Error processing OAuth callback:', error);
+          window.location.href = '/?error=' + encodeURIComponent('Failed to process authentication');
         }
-      }
-
-      // Handle errors
-      if (error) {
-        console.error('Authentication error:', error);
-        window.location.href = '/?error=' + encodeURIComponent(error);
       }
     };
 
@@ -194,19 +203,15 @@ const Index = () => {
   // Function to update user profile with Google data
   const updateUserProfileFromGoogle = async (user: any) => {
     try {
-      console.log('Updating profile for user:', user.email);
-      console.log('User metadata:', user.user_metadata);
-      
       const userMetadata = user.user_metadata;
       const profileData = {
         id: user.id,
         email: user.email,
         name: userMetadata?.name || userMetadata?.full_name || 'User',
         profile_photo: userMetadata?.avatar_url || userMetadata?.picture || '',
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
-      console.log('Profile data to upsert:', profileData);
 
       // Upsert profile data
       const { error } = await supabase
@@ -215,21 +220,15 @@ const Index = () => {
 
       if (error) {
         console.error('Error updating profile:', error);
-        throw error;
-      } else {
-        console.log('Profile updated successfully with Google data');
       }
     } catch (error) {
-      console.error('Error updating user profile:', error);
-      // Don't throw here, as we don't want to break the auth flow
+      console.error('Error in updateUserProfileFromGoogle:', error);
     }
   };
 
   // Function to create Gmail credentials for new users
   const createGmailCredentials = async (user: any) => {
     try {
-      console.log('Creating Gmail credentials for user:', user.id);
-      
       // Get the current session to extract Gmail tokens
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -237,9 +236,6 @@ const Index = () => {
         console.error('No session found for Gmail credentials creation');
         return;
       }
-
-      console.log('Session provider token:', session.provider_token ? 'Present' : 'Missing');
-      console.log('Session provider refresh token:', session.provider_refresh_token ? 'Present' : 'Missing');
 
       // Check if user already has Gmail credentials
       const { data: existingCredentials } = await supabase
@@ -250,7 +246,6 @@ const Index = () => {
         .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
 
       if (existingCredentials) {
-        console.log('Gmail credentials already exist for user');
         return;
       }
 
@@ -263,13 +258,6 @@ const Index = () => {
         is_active: true
       };
 
-      console.log('Creating Gmail credentials with data:', {
-        user_id: credentialsData.user_id,
-        has_access_token: !!credentialsData.access_token,
-        has_refresh_token: !!credentialsData.refresh_token,
-        token_expires_at: credentialsData.token_expires_at
-      });
-
       const { error } = await supabase
         .from('gmail_credentials')
         .insert(credentialsData);
@@ -277,8 +265,6 @@ const Index = () => {
       if (error) {
         console.error('Error creating Gmail credentials:', error);
         throw error;
-      } else {
-        console.log('Gmail credentials created successfully for user');
       }
     } catch (error) {
       console.error('Error creating Gmail credentials:', error);
@@ -298,6 +284,19 @@ const Index = () => {
 
   const handleCampaignSent = () => {
     setRefreshCampaigns(prev => prev + 1); // Increment to trigger refresh
+    setCurrentView('campaigns');
+  };
+
+  const handleViewTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    setCurrentView('template-viewer');
+  };
+
+
+
+  const handleBackFromTemplateViewer = () => {
+    setSelectedTemplateId(null);
+    setCurrentView('campaign-builder');
   };
 
   const handleNavigate = (view: 'dashboard' | 'campaigns' | 'contacts' | 'campaign-builder' | 'templates' | 'settings', settingsTab?: string) => {
@@ -356,7 +355,17 @@ const Index = () => {
           }}
           onCampaignSent={handleCampaignSent}
           campaignId={selectedCampaignId || undefined}
+          onViewTemplate={handleViewTemplate}
         />;
+      case 'template-viewer':
+        return selectedTemplateId ? (
+          <TemplateViewer 
+            templateId={selectedTemplateId} 
+            onBack={handleBackFromTemplateViewer} 
+          />
+        ) : (
+          <div>Template not found</div>
+        );
       case 'contacts':
         return <ContactManager onViewContacts={(listId) => {
           setSelectedContactListId(listId);
@@ -376,6 +385,9 @@ const Index = () => {
         return <Dashboard onNavigate={handleNavigate} />;
     }
   };
+
+  // Show business onboarding if user hasn't completed it
+
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden">

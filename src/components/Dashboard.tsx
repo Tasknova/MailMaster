@@ -31,43 +31,44 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
   const [gmailConfigured, setGmailConfigured] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user?.id && !isFetching) {
+      console.log('Fetching stats for user:', user.id);
+      setIsFetching(true);
       fetchStats();
       checkGmailConfiguration();
       checkIfNewUser();
       fetchUserProfile();
     }
-  }, [user]);
+  }, [user?.id]); // Only depend on user.id, not the entire user object
 
   const fetchStats = async () => {
     try {
-      console.log('Fetching stats for user:', user?.id);
-      
-      // Test campaigns
+      // Fetch campaigns
       const { data: campaigns, error: campaignsError } = await supabase
         .from('campaigns')
         .select('id, status')
         .eq('user_id', user?.id);
-      
-      console.log('Campaigns result:', { campaigns, campaignsError });
 
-      // Test contact lists
+      console.log('Campaigns result:', campaigns);
+
+      // Fetch contact lists
       const { data: lists, error: listsError } = await supabase
         .from('contact_lists')
         .select('id, total_contacts')
         .eq('user_id', user?.id);
-      
-      console.log('Contact lists result:', { lists, listsError });
 
-      // Test contacts
+      console.log('Contact lists result:', lists);
+
+      // Fetch contacts
       const { data: contacts, error: contactsError } = await supabase
         .from('contacts')
         .select('id')
         .eq('user_id', user?.id);
-      
-      console.log('Contacts result:', { contacts, contactsError });
+
+      console.log('Contacts result:', contacts);
 
       setStats({
         campaigns: campaigns?.length || 0,
@@ -79,6 +80,7 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
       console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -114,10 +116,18 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
         .eq('user_id', user?.id)
         .limit(1);
 
+      // Check Gmail configuration directly instead of using state
+      const { data: gmailCredentials } = await supabase
+        .from('gmail_credentials')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .limit(1);
+
       // Consider user new if they have no campaigns, no lists, and no Gmail configured
       setIsNewUser((!campaigns || campaigns.length === 0) && 
                    (!lists || lists.length === 0) && 
-                   !gmailConfigured);
+                   (!gmailCredentials || gmailCredentials.length === 0));
     } catch (error) {
       console.error('Error checking if new user:', error);
       setIsNewUser(true);

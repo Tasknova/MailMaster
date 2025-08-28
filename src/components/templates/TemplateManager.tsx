@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import TemplatePreview from '../campaigns/TemplatePreview';
 
 interface Template {
   id: string;
@@ -37,14 +37,13 @@ interface TemplateManagerProps {
 
 const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManagerProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('templates');
   const [customHtml, setCustomHtml] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
-  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
-  const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
@@ -238,10 +237,7 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => {
-                              setPreviewTemplate(template);
-                              setShowTemplatePreview(true);
-                            }}
+                            onClick={() => navigate(`/template-preview/${template.id}`)}
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             Preview
@@ -369,16 +365,6 @@ const TemplateManager = ({ onTemplateSelect, selectedTemplateId }: TemplateManag
         </Card>
       )}
 
-      {/* Template Preview Full Page */}
-      {showTemplatePreview && previewTemplate && (
-        <TemplatePreview
-          htmlContent={previewTemplate.html_content}
-          onBack={() => {
-            setShowTemplatePreview(false);
-            setPreviewTemplate(null);
-          }}
-        />
-      )}
     </div>
   );
 };

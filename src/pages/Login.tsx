@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const { signIn, signUp, signInWithGoogle } = useAuth();
@@ -179,6 +180,22 @@ const Login = () => {
     }
   };
 
+  const handleClearSession = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Session cleared",
+        description: "Your session has been cleared. Please sign in again.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear session. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 p-4 relative overflow-hidden">
       {/* Background decoration */}
@@ -202,10 +219,9 @@ const Login = () => {
       <div className="w-full max-w-md relative z-10">
                  {/* Logo and Title */}
          <div className="text-center mb-8">
-           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl mb-6 shadow-lg">
-             <Mail className="w-10 h-10 text-white" />
+           <div className="flex justify-center mb-6">
+             <img src="/logo2.png" alt="MailMaster Logo" className="h-20 w-auto" />
            </div>
-           <h1 className="text-4xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-sky-600 to-sky-800 bg-clip-text text-transparent">MailMaster</h1>
            <p className="text-gray-600 text-lg">Professional Email Marketing Platform</p>
          </div>
 
@@ -478,10 +494,18 @@ const Login = () => {
         </Card>
 
                  {/* Footer */}
-         <div className="text-center mt-8">
+         <div className="text-center mt-8 space-y-4">
            <p className="text-xs text-muted-foreground">
              By signing up, you agree to our Terms of Service and Privacy Policy
            </p>
+           <Button 
+             variant="outline" 
+             size="sm" 
+             onClick={handleClearSession}
+             className="text-xs"
+           >
+             Clear Session
+           </Button>
          </div>
        </div>
      </div>

@@ -126,11 +126,9 @@ const LandingPage = () => {
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-                MailMaster
-              </h1>
-            </div>
+                         <div className="flex items-center gap-3">
+               <img src="/logo2.png" alt="MailMaster Logo" className="h-8 w-auto" />
+             </div>
                                   <div className="flex items-center gap-4">
                         <Button variant="outline" onClick={() => navigate('/dashboard')}>Sign In</Button>
                         <Button variant="hero" onClick={() => navigate('/dashboard')}>Get Started</Button>
@@ -142,6 +140,9 @@ const LandingPage = () => {
       {/* Hero Section */}
       <section className="py-20 bg-gradient-to-br from-primary/5 to-secondary/5">
         <div className="container mx-auto px-4 text-center">
+                     <div className="flex justify-center mb-8">
+             <img src="/logo2.png" alt="MailMaster Logo" className="h-16 w-auto" />
+           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-6">
             Master Your
             <span className="bg-gradient-hero bg-clip-text text-transparent"> Email Marketing</span>

@@ -75,8 +75,8 @@ const Auth = () => {
       <div className="w-full max-w-md relative z-10">
         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
-            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-              <Mail className="w-10 h-10 text-white" />
+            <div className="flex justify-center mb-6">
+              <img src="/logo2.png" alt="Tasknova Logo" className="h-20 w-auto" />
             </div>
             <CardTitle className="text-3xl font-bold text-gray-900 mb-3">
               {isLogin ? 'Welcome Back' : 'Get Started'}

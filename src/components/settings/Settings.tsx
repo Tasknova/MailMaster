@@ -50,14 +50,7 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
     position: ''
   });
 
-  const [company, setCompany] = useState({
-    name: 'Your Company Name',
-    email: 'contact@yourcompany.com',
-    phone: '+1 (555) 123-4567',
-    address: '123 Business St, City, State 12345',
-    website: 'https://yourcompany.com',
-    logo: ''
-  });
+
 
   const [notifications, setNotifications] = useState({
     email_notifications: true,
@@ -74,6 +67,7 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
 
   const fetchUserProfile = async () => {
     try {
+      // Fetch user profile
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -101,11 +95,11 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
       } else {
         setProfile(data);
         setProfileForm({
-          name: data.name || '',
-          email: data.email || '',
-          phone: '',
+          name: data.name,
+          email: data.email,
+          phone: data.phone || '',
           company: data.company || '',
-          position: ''
+          position: data.position || ''
         });
       }
     } catch (error) {
@@ -148,13 +142,7 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
     }
   };
 
-  const saveCompany = () => {
-    // Save company settings
-    toast({
-      title: "Company Settings Updated",
-      description: "Your company settings have been saved successfully.",
-    });
-  };
+
 
   const saveNotifications = () => {
     // Save notification settings
@@ -199,9 +187,8 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
       </div>
 
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
@@ -283,67 +270,7 @@ const Settings = ({ activeTab = 'profile' }: SettingsProps) => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="company" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="w-5 h-5" />
-                Company Information
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                This information will be used in your email templates
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="company-name">Company Name</Label>
-                <Input
-                  id="company-name"
-                  value={company.name}
-                  onChange={(e) => setCompany({ ...company, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company-email">Company Email</Label>
-                <Input
-                  id="company-email"
-                  type="email"
-                  value={company.email}
-                  onChange={(e) => setCompany({ ...company, email: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company-phone">Company Phone</Label>
-                <Input
-                  id="company-phone"
-                  value={company.phone}
-                  onChange={(e) => setCompany({ ...company, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company-address">Company Address</Label>
-                <Textarea
-                  id="company-address"
-                  value={company.address}
-                  onChange={(e) => setCompany({ ...company, address: e.target.value })}
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company-website">Website</Label>
-                <Input
-                  id="company-website"
-                  type="url"
-                  value={company.website}
-                  onChange={(e) => setCompany({ ...company, website: e.target.value })}
-                />
-              </div>
-              <Button onClick={saveCompany}>
-                Save Company Settings
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         <TabsContent value="integrations" className="space-y-4">
           <Card>
