@@ -277,13 +277,17 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
             email: null,
             first_name: null,
             last_name: null,
-            custom_fields: {}
+            flexible_data: {} // Use the new flexible_data column
           };
 
           selectedColumns.forEach((column) => {
             const columnIndex = csvColumns.indexOf(column);
             const value = columnIndex >= 0 ? values[columnIndex] : '';
             
+            // Store all column data in flexible_data for maximum flexibility
+            contact.flexible_data[column] = value || null;
+            
+            // Also map to standard fields if the column names match common patterns
             if (column.toLowerCase().includes('email')) {
               contact.email = value || null;
             } else if (column.toLowerCase().includes('fname') || 
@@ -292,9 +296,6 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
             } else if (column.toLowerCase().includes('lname') || 
                       (column.toLowerCase().includes('last') && column.toLowerCase().includes('name'))) {
               contact.last_name = value || null;
-            } else {
-              // Store other columns in custom_fields
-              contact.custom_fields[column] = value || null;
             }
           });
 
@@ -407,7 +408,7 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
           email: newContact.email,
           first_name: newContact.first_name || null,
           last_name: newContact.last_name || null,
-          custom_fields: newContact.custom_fields
+          flexible_data: newContact.custom_fields // Use flexible_data instead of custom_fields
         });
 
       if (error) throw error;

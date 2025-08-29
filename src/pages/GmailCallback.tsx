@@ -50,15 +50,15 @@ const GmailCallback = () => {
           title: "🎉 Gmail Connected Successfully!",
           description: "Your Gmail account is now connected. You can create and send email campaigns!",
         });
+        
+        // Redirect to dashboard after success
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 2000);
       } else {
         setStatus('error');
         setErrorMessage('Gmail permissions not granted. Please try again and make sure to grant Gmail access.');
       }
-
-      // Redirect back to dashboard after a short delay
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 3000);
 
     } catch (error) {
       console.error('Gmail callback error:', error);
@@ -143,7 +143,7 @@ const GmailCallback = () => {
   };
 
   const goToDashboard = () => {
-    navigate('/dashboard');
+    navigate('/dashboard', { replace: true });
   };
 
   return (

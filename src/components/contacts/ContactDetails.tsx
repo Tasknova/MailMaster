@@ -367,6 +367,27 @@ const ContactDetails = ({ listId, onBack }: ContactDetailsProps) => {
                           : contact.first_name || contact.last_name || 'No name provided'
                         }
                       </div>
+                      {/* Display flexible_data fields if they exist */}
+                      {contact.flexible_data && Object.keys(contact.flexible_data).length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {Object.entries(contact.flexible_data)
+                            .filter(([key, value]) => 
+                              value && 
+                              key.toLowerCase() !== 'email' && 
+                              key.toLowerCase() !== 'first_name' && 
+                              key.toLowerCase() !== 'last_name' &&
+                              key.toLowerCase() !== 'fname' &&
+                              key.toLowerCase() !== 'lname'
+                            )
+                            .slice(0, 2) // Show only first 2 additional fields
+                            .map(([key, value]) => (
+                              <span key={key} className="mr-2">
+                                <strong>{key}:</strong> {String(value)}
+                              </span>
+                            ))
+                          }
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

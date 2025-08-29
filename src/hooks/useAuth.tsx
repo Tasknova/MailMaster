@@ -76,11 +76,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signInWithGoogle = async () => {
-    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
+    // Use window.location.origin to get the current domain dynamically
+    const redirectUrl = `${window.location.origin}/dashboard`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${redirectUrl}/dashboard`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           scope: 'openid email profile'
@@ -92,11 +93,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signUpWithGoogle = async () => {
-    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
+    // Use window.location.origin to get the current domain dynamically
+    const redirectUrl = `${window.location.origin}/dashboard`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${redirectUrl}/dashboard`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -109,11 +111,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const configureGmail = async () => {
-    const redirectUrl = import.meta.env.VITE_DEV_SERVER_URL || 'http://localhost:8083';
+    // Use window.location.origin to get the current domain dynamically
+    const redirectUrl = `${window.location.origin}/gmail-callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${redirectUrl}/gmail-callback`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

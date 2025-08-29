@@ -21,20 +21,39 @@ const Auth = () => {
 
   // Redirect if already authenticated
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
-    if (isLogin) {
-      await signIn(formData.email, formData.password);
-    } else {
-      await signUp(formData.email, formData.password, formData.firstName, formData.lastName);
+    try {
+      if (isLogin) {
+        const { error } = await signIn(formData.email, formData.password);
+        if (error) {
+          console.error('Sign in error:', error);
+          alert(`Sign in failed: ${error.message}`);
+        }
+      } else {
+        const { error } = await signUp(formData.email, formData.password, {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          full_name: `${formData.firstName} ${formData.lastName}`
+        });
+        if (error) {
+          console.error('Sign up error:', error);
+          alert(`Sign up failed: ${error.message}`);
+        } else {
+          alert('Account created successfully! Please check your email for confirmation.');
+        }
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      alert('Authentication failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

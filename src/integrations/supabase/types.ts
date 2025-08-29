@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -73,7 +73,9 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          contact_list_id: string | null
           created_at: string
+          description: string | null
           from_email: string
           from_name: string
           html_content: string
@@ -85,6 +87,10 @@ export type Database = {
           sent_at: string | null
           status: string | null
           subject: string
+          subject_line: string | null
+          subject_variables: Json | null
+          template_id: string | null
+          template_variables: Json | null
           text_content: string | null
           total_bounced: number | null
           total_clicked: number | null
@@ -97,7 +103,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          contact_list_id?: string | null
           created_at?: string
+          description?: string | null
           from_email: string
           from_name: string
           html_content: string
@@ -109,6 +117,10 @@ export type Database = {
           sent_at?: string | null
           status?: string | null
           subject: string
+          subject_line?: string | null
+          subject_variables?: Json | null
+          template_id?: string | null
+          template_variables?: Json | null
           text_content?: string | null
           total_bounced?: number | null
           total_clicked?: number | null
@@ -121,7 +133,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          contact_list_id?: string | null
           created_at?: string
+          description?: string | null
           from_email?: string
           from_name?: string
           html_content?: string
@@ -133,6 +147,10 @@ export type Database = {
           sent_at?: string | null
           status?: string | null
           subject?: string
+          subject_line?: string | null
+          subject_variables?: Json | null
+          template_id?: string | null
+          template_variables?: Json | null
           text_content?: string | null
           total_bounced?: number | null
           total_clicked?: number | null
@@ -146,13 +164,60 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "campaigns_contact_list_id_fkey"
+            columns: ["contact_list_id"]
+            isOneToOne: false
+            referencedRelation: "contact_lists"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "campaigns_list_id_fkey"
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "contact_lists"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      company_profiles: {
+        Row: {
+          company_address: string | null
+          company_email: string
+          company_name: string
+          company_website: string | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_address?: string | null
+          company_email: string
+          company_name: string
+          company_website?: string | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_address?: string | null
+          company_email?: string
+          company_name?: string
+          company_website?: string | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       contact_lists: {
         Row: {
@@ -190,6 +255,7 @@ export type Database = {
           custom_fields: Json | null
           email: string
           first_name: string | null
+          flexible_data: Json | null
           id: string
           last_name: string | null
           list_id: string
@@ -201,6 +267,7 @@ export type Database = {
           custom_fields?: Json | null
           email: string
           first_name?: string | null
+          flexible_data?: Json | null
           id?: string
           last_name?: string | null
           list_id: string
@@ -212,6 +279,7 @@ export type Database = {
           custom_fields?: Json | null
           email?: string
           first_name?: string | null
+          flexible_data?: Json | null
           id?: string
           last_name?: string | null
           list_id?: string
@@ -228,33 +296,99 @@ export type Database = {
           },
         ]
       }
+      gmail_credentials: {
+        Row: {
+          access_token: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company: string | null
           created_at: string
           email: string
-          first_name: string | null
           id: string
-          last_name: string | null
+          name: string | null
+          profile_photo: string | null
           updated_at: string
         }
         Insert: {
           company?: string | null
           created_at?: string
           email: string
-          first_name?: string | null
           id: string
-          last_name?: string | null
+          name?: string | null
+          profile_photo?: string | null
           updated_at?: string
         }
         Update: {
           company?: string | null
           created_at?: string
           email?: string
-          first_name?: string | null
           id?: string
-          last_name?: string | null
+          name?: string | null
+          profile_photo?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          html_content: string
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          html_content: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          html_content?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -263,7 +397,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      sync_users_to_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -32,6 +32,13 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
+  // Ensure authenticated users are on dashboard route
+  useEffect(() => {
+    if (!loading && user && location.pathname === '/') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, loading, location.pathname, navigate]);
+
   // Validate user session
   useEffect(() => {
     const validateSession = async () => {
@@ -64,6 +71,7 @@ const Index = () => {
   // Initialize state based on current URL path
   const getInitialView = () => {
     const path = location.pathname;
+    console.log('Current path:', path);
     if (path === '/dashboard') return 'dashboard';
     if (path === '/campaigns') return 'campaigns';
     if (path === '/campaigns/new') return 'campaign-builder';
@@ -172,7 +180,7 @@ const Index = () => {
           if (error) {
             console.error('Error setting session:', error);
             // Redirect to login with error
-            window.location.href = '/?error=' + encodeURIComponent(error.message);
+            navigate('/auth?error=' + encodeURIComponent(error.message));
           } else {
             // Get the current session to access user data
             const { data: { session } } = await supabase.auth.getSession();
@@ -188,17 +196,22 @@ const Index = () => {
                 // Create Gmail credentials instead of updating profile
                 await createGmailCredentials(session.user);
               }
+              
+              // Ensure we're on the dashboard
+              if (location.pathname !== '/dashboard') {
+                navigate('/dashboard', { replace: true });
+              }
             }
           }
         } catch (error) {
           console.error('Error processing OAuth callback:', error);
-          window.location.href = '/?error=' + encodeURIComponent('Failed to process authentication');
+          navigate('/auth?error=' + encodeURIComponent('Failed to process authentication'));
         }
       }
     };
 
     handleOAuthCallback();
-  }, [searchParams]);
+  }, [searchParams, navigate, location.pathname]);
 
   // Function to update user profile with Google data
   const updateUserProfileFromGoogle = async (user: any) => {
@@ -317,7 +330,7 @@ const Index = () => {
 
   // Show login page if not authenticated
   if (!user) {
-    return <Login />;
+    return null; // Let the router handle the redirect
   }
 
   const renderContent = () => {
