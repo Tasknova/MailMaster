@@ -23,6 +23,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import GmailService from '@/services/gmailService';
 import { useAuth } from '@/hooks/useAuth';
+import { useGmailConfig } from '@/hooks/useGmailConfig';
 import { supabase } from '@/integrations/supabase/client';
 
 interface GmailSettingsProps {
@@ -31,30 +32,27 @@ interface GmailSettingsProps {
 
 const GmailSettings = ({ onBack }: GmailSettingsProps) => {
   const { user, configureGmail } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { 
+    status, 
+    loading: configLoading, 
+    error: configError,
+    refreshStatus,
+    toggleEnabled,
+    disconnect,
+    reconnect
+  } = useGmailConfig();
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [gmailService, setGmailService] = useState<GmailService | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
-    loadSettings();
     checkIfNewUser();
   }, []);
 
-  const loadSettings = async () => {
-    setIsLoadingSettings(true);
-    try {
-      const service = new GmailService();
-
-      setGmailService(service);
-      setIsAuthenticated(await service.isAuthenticated());
-    } catch (error) {
-      console.error('Error loading Gmail settings:', error);
-    } finally {
-      setIsLoadingSettings(false);
-    }
-  };
+  // Initialize Gmail service
+  useEffect(() => {
+    setGmailService(new GmailService());
+  }, []);
 
   const checkIfNewUser = async () => {
     try {
@@ -71,18 +69,10 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
         .eq('user_id', user?.id)
         .limit(1);
 
-      // Check if user has Gmail credentials
-      const { data: credentials } = await supabase
-        .from('gmail_credentials')
-        .select('id')
-        .eq('user_id', user?.id)
-        .eq('is_active', true)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
-
       // Consider user new if they have no campaigns, no lists, and no Gmail configured
       setIsNewUser((!campaigns || campaigns.length === 0) && 
                    (!lists || lists.length === 0) && 
-                   !credentials);
+                   !status.isConfigured);
     } catch (error) {
       console.error('Error checking if new user:', error);
       setIsNewUser(true);
@@ -107,6 +97,8 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
           title: "🎉 Gmail Connected Successfully!",
           description: "Your Gmail account is now connected. You can create and send email campaigns!",
         });
+        // Refresh status after successful connection
+        await refreshStatus();
       }
     } catch (error) {
       console.error('Error connecting Gmail:', error);
@@ -142,31 +134,30 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
     }
   };
 
-  const logout = async () => {
-    if (!gmailService) return;
-
+  const handleDisconnect = async () => {
     setIsLoading(true);
     try {
-      await gmailService.logout();
-      setIsAuthenticated(false);
-      toast({
-        title: "Logged Out",
-        description: "Gmail authentication has been cleared.",
-      });
+      await disconnect();
     } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to logout from Gmail.",
-        variant: "destructive",
-      });
+      console.error('Disconnect error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    setIsLoading(true);
+    try {
+      await reconnect();
+    } catch (error) {
+      console.error('Reconnect error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const testConnection = async () => {
-    if (!gmailService || !isAuthenticated) {
+    if (!gmailService || !status.isAuthenticated) {
       toast({
         title: "Not Authenticated",
         description: "Please authenticate with Gmail first.",
@@ -217,7 +208,7 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
       </div>
 
       {/* New User Welcome */}
-      {isNewUser && !isAuthenticated && (
+      {isNewUser && !status.isConfigured && (
         <Alert className="border-blue-200 bg-blue-50">
           <User className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
@@ -229,40 +220,97 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
         </Alert>
       )}
 
-      {/* Gmail Connection Status */}
+      {/* Gmail Configuration Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="w-5 h-5" />
-            Gmail Connection Status
+            Gmail Configuration
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isLoadingSettings ? (
+          {configLoading ? (
             <div className="flex items-center justify-center py-4">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-              <span>Loading connection status...</span>
+              <span>Loading configuration status...</span>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span>Gmail API Status:</span>
-                  {isAuthenticated ? (
-                    <Badge variant="default" className="bg-green-100 text-green-800">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary">
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Not Connected
-                    </Badge>
+              {/* Configuration Status */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Configuration Status:</span>
+                    {status.isConfigured ? (
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Configured
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Not Configured
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Authentication Status:</span>
+                    {status.isAuthenticated ? (
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Authenticated
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Not Authenticated
+                      </Badge>
+                    )}
+                  </div>
+
+                  {status.lastConfigured && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Last Configured:</span>
+                      <span className="text-sm text-muted-foreground">
+                        {status.lastConfigured.toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Gmail Enabled:</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-muted-foreground">
+                        {status.isEnabled ? 'Yes' : 'No'}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleEnabled(!status.isEnabled)}
+                        disabled={configLoading || !status.isConfigured}
+                      >
+                        {status.isEnabled ? 'Disable' : 'Enable'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {status.needsReauth && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-orange-600">Re-authentication Needed:</span>
+                      <Badge variant="outline" className="text-orange-600 border-orange-300">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Token Expired
+                      </Badge>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {!isAuthenticated ? (
+              {/* Action Buttons */}
+              {!status.isConfigured ? (
                 <div className="space-y-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
@@ -307,14 +355,37 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
                     <div className="flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
                       <div>
-                        <h4 className="font-medium text-green-900 mb-2">✅ Gmail Successfully Connected!</h4>
+                        <h4 className="font-medium text-green-900 mb-2">✅ Gmail Successfully Configured!</h4>
                         <p className="text-sm text-green-800">
-                          Your Gmail account is connected and ready to send email campaigns. 
-                          You can now create and send email campaigns to your contacts.
+                          Your Gmail account is configured and {status.isEnabled ? 'enabled' : 'disabled'} for sending email campaigns.
                         </p>
                       </div>
                     </div>
                   </div>
+
+                  {status.needsReauth && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-orange-900 mb-2">Re-authentication Required</h4>
+                          <p className="text-sm text-orange-800 mb-3">
+                            Your Gmail access token has expired. Please reconnect to continue sending emails.
+                          </p>
+                          <Button 
+                            onClick={handleReconnect} 
+                            disabled={isLoading}
+                            variant="outline"
+                            size="sm"
+                            className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Reconnect Gmail
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
@@ -334,7 +405,7 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
                   <div className="flex gap-2">
                     <Button 
                       onClick={testConnection} 
-                      disabled={isLoading}
+                      disabled={isLoading || !status.isAuthenticated}
                       variant="outline"
                       className="flex-1"
                     >
@@ -342,7 +413,7 @@ const GmailSettings = ({ onBack }: GmailSettingsProps) => {
                       Test Connection
                     </Button>
                     <Button 
-                      onClick={logout} 
+                      onClick={handleDisconnect} 
                       variant="outline"
                       className="flex-1"
                     >

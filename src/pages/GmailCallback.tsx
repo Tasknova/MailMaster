@@ -79,63 +79,17 @@ const GmailCallback = () => {
         throw new Error('No session found');
       }
 
-      // Check if user already has Gmail credentials
-      const { data: existingCredentials } = await supabase
-        .from('gmail_credentials')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
+      // Import and use the GmailConfigService
+      const GmailConfigService = await import('@/services/gmailConfigService').then(m => m.default);
+      
+      // Save tokens using the config service
+      await GmailConfigService.saveTokens(
+        session.provider_token,
+        session.provider_refresh_token,
+        session.expires_at ? session.expires_at - Math.floor(Date.now() / 1000) : undefined
+      );
 
-      if (existingCredentials) {
-        console.log('Gmail credentials already exist for user, updating...');
-        
-        // Update existing credentials
-        const { error: updateError } = await supabase
-          .from('gmail_credentials')
-          .update({
-            access_token: session.provider_token,
-            refresh_token: session.provider_refresh_token,
-            token_expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingCredentials.id);
-
-        if (updateError) {
-          console.error('Error updating Gmail credentials:', updateError);
-          throw updateError;
-        }
-        
-        console.log('Gmail credentials updated successfully');
-        return;
-      }
-
-      // Create new Gmail credentials entry with tokens
-      const credentialsData = {
-        user_id: user.id,
-        access_token: session.provider_token,
-        refresh_token: session.provider_refresh_token,
-        token_expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-        is_active: true
-      };
-
-      console.log('Creating new Gmail credentials with data:', {
-        user_id: credentialsData.user_id,
-        has_access_token: !!credentialsData.access_token,
-        has_refresh_token: !!credentialsData.refresh_token,
-        token_expires_at: credentialsData.token_expires_at
-      });
-
-      const { error } = await supabase
-        .from('gmail_credentials')
-        .insert(credentialsData);
-
-      if (error) {
-        console.error('Error creating Gmail credentials:', error);
-        throw error;
-      } else {
-        console.log('Gmail credentials created successfully for user');
-      }
+      console.log('Gmail credentials saved successfully');
     } catch (error) {
       console.error('Error creating Gmail credentials:', error);
       throw error;

@@ -26,6 +26,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import GmailService from '@/services/gmailService';
+import { processCompleteEmail } from '@/lib/emailTracking';
+import { AnalyticsService } from '@/services/analyticsService';
 
 interface ContactList {
   id: string;
@@ -496,16 +498,29 @@ const CampaignBuilder = ({ onBack, onCreateContactList, onCampaignSent, campaign
            }
            console.log('Processed subject:', processedSubject);
 
+                     // Process email with tracking
+                     const trackingConfig = {
+                       campaignId: campaign.id,
+                       recipientId: contact.id,
+                       baseUrl: window.location.origin
+                     };
+                     
+                     const processedHtmlWithTracking = processCompleteEmail(processedHtml, trackingConfig);
+                     
                      // Send email using Gmail service
                      await gmailService.sendEmail({
-            to: [contact.email],
-            subject: processedSubject,
-            htmlContent: processedHtml,
-            fromName: userProfile?.name || 'MailMaster',
-            fromEmail: userProfile?.email || user?.email
-          });
+                       to: [contact.email],
+                       subject: processedSubject,
+                       htmlContent: processedHtmlWithTracking,
+                       fromName: userProfile?.name || 'MailMaster',
+                       fromEmail: userProfile?.email || user?.email
+                     });
 
-          sentCount++;
+                     // Track email sent and delivered
+                     await AnalyticsService.trackEmailSent(campaign.id, contact.id);
+                     await AnalyticsService.trackEmailDelivered(campaign.id, contact.id);
+
+                     sentCount++;
         } catch (emailError) {
           console.error(`Error sending email to ${contact.email}:`, emailError);
           errorCount++;
@@ -517,6 +532,7 @@ const CampaignBuilder = ({ onBack, onCreateContactList, onCampaignSent, campaign
         .from('campaigns')
         .update({
           total_sent: sentCount,
+          total_delivered: sentCount - errorCount,
           total_bounced: errorCount,
           status: errorCount === 0 ? 'sent' : 'sent_with_errors'
         })

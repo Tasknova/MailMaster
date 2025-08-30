@@ -159,14 +159,78 @@ const Index = () => {
         console.log('OAuth callback detected:', { code, error, access_token: !!access_token, refresh_token: !!refresh_token });
       }
 
-      // Immediately clear URL parameters for security
-      if (code || error || access_token || refresh_token) {
-        window.history.replaceState({}, document.title, '/dashboard');
+      // Handle OAuth error
+      if (error) {
+        console.error('OAuth error:', error);
+        navigate('/auth?error=' + encodeURIComponent(error));
+        return;
       }
 
-      // Handle Supabase OAuth callback
+      // Handle Supabase OAuth callback with code
+      if (code) {
+        try {
+          console.log('Processing OAuth code:', code);
+          console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+          console.log('Supabase Key:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Present' : 'Missing');
+          
+          // Exchange code for session
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          
+          console.log('Exchange result:', { data: !!data, error: error?.message });
+          
+          if (error) {
+            console.error('Error exchanging code for session:', error);
+            console.error('Error details:', {
+              message: error.message,
+              status: error.status,
+              name: error.name
+            });
+            navigate('/auth?error=' + encodeURIComponent(error.message));
+            return;
+          }
+
+          console.log('Session data:', {
+            hasSession: !!data.session,
+            hasUser: !!data.session?.user,
+            userId: data.session?.user?.id,
+            userEmail: data.session?.user?.email
+          });
+
+          if (data.session?.user) {
+            console.log('Session established successfully:', data.session.user.id);
+            
+            // Update user profile with Google data
+            await updateUserProfileFromGoogle(data.session.user);
+            
+            // Check if this OAuth flow included Gmail permissions
+            const hasGmailScope = data.session.provider_token && 
+              data.session.provider_token.includes('gmail.send');
+            
+            if (hasGmailScope) {
+              // Create Gmail credentials
+              await createGmailCredentials(data.session.user);
+            }
+            
+            // Clear URL parameters and redirect to dashboard
+            window.history.replaceState({}, document.title, '/dashboard');
+            navigate('/dashboard', { replace: true });
+          } else {
+            console.error('No session or user in exchange result');
+            navigate('/auth?error=' + encodeURIComponent('No session established'));
+          }
+        } catch (error) {
+          console.error('Error processing OAuth callback:', error);
+          console.error('Error type:', typeof error);
+          console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+          navigate('/auth?error=' + encodeURIComponent('Failed to process authentication'));
+        }
+      }
+
+      // Handle direct token callback (fallback)
       if (access_token && refresh_token) {
         try {
+          console.log('Processing direct tokens');
+          
           // Validate tokens before using them
           if (!access_token.startsWith('eyJ') || !refresh_token.startsWith('eyJ')) {
             throw new Error('Invalid token format');
@@ -179,32 +243,33 @@ const Index = () => {
 
           if (error) {
             console.error('Error setting session:', error);
-            // Redirect to login with error
             navigate('/auth?error=' + encodeURIComponent(error.message));
-          } else {
-            // Get the current session to access user data
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-              // Always update user profile with Google data (basic info)
-              await updateUserProfileFromGoogle(session.user);
-              
-              // Check if this OAuth flow included Gmail permissions
-              const hasGmailScope = session.provider_token && 
-                session.provider_token.includes('gmail.send');
-              
-              if (hasGmailScope) {
-                // Create Gmail credentials instead of updating profile
-                await createGmailCredentials(session.user);
-              }
-              
-              // Ensure we're on the dashboard
-              if (location.pathname !== '/dashboard') {
-                navigate('/dashboard', { replace: true });
-              }
+            return;
+          }
+
+          // Get the current session to access user data
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            console.log('Session established with direct tokens:', session.user.id);
+            
+            // Update user profile with Google data
+            await updateUserProfileFromGoogle(session.user);
+            
+            // Check if this OAuth flow included Gmail permissions
+            const hasGmailScope = session.provider_token && 
+              session.provider_token.includes('gmail.send');
+            
+            if (hasGmailScope) {
+              // Create Gmail credentials
+              await createGmailCredentials(session.user);
             }
+            
+            // Clear URL parameters and redirect to dashboard
+            window.history.replaceState({}, document.title, '/dashboard');
+            navigate('/dashboard', { replace: true });
           }
         } catch (error) {
-          console.error('Error processing OAuth callback:', error);
+          console.error('Error processing direct token callback:', error);
           navigate('/auth?error=' + encodeURIComponent('Failed to process authentication'));
         }
       }

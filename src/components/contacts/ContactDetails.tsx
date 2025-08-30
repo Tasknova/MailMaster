@@ -25,6 +25,7 @@ interface Contact {
   last_name: string | null;
   status: string;
   created_at: string;
+  flexible_data?: Record<string, any>;
 }
 
 interface ContactList {
@@ -158,6 +159,39 @@ const ContactDetails = ({ listId, onBack }: ContactDetailsProps) => {
     }
   };
 
+  const deleteContactList = async () => {
+    if (!confirm(`Are you sure you want to delete the contact list "${contactList?.name}"? This will also delete all ${contactList?.total_contacts} contacts in this list. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      // First delete all contacts in the list
+      const { error: contactsError } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('list_id', listId);
+
+      if (contactsError) throw contactsError;
+
+      // Then delete the contact list
+      const { error: listError } = await supabase
+        .from('contact_lists')
+        .delete()
+        .eq('id', listId);
+
+      if (listError) throw listError;
+
+      toast({ title: "Contact list deleted successfully!" });
+      onBack(); // Go back to contact lists
+    } catch (error) {
+      toast({
+        title: "Error deleting contact list",
+        description: error instanceof Error ? error.message : "Failed to delete contact list",
+        variant: "destructive",
+      });
+    }
+  };
+
   const exportContacts = () => {
     const csvContent = [
       'email,first_name,last_name,status,created_at',
@@ -212,16 +246,26 @@ const ContactDetails = ({ listId, onBack }: ContactDetailsProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">{contactList.name}</h2>
-          <p className="text-muted-foreground">
-            {contactList.description || 'No description'}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">{contactList.name}</h2>
+            <p className="text-muted-foreground">
+              {contactList.description || 'No description'}
+            </p>
+          </div>
         </div>
+        <Button 
+          variant="destructive" 
+          size="sm"
+          onClick={deleteContactList}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete List
+        </Button>
       </div>
 
       {/* Contact List Info */}

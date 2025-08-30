@@ -84,6 +84,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
+          prompt: 'consent',
           scope: 'openid email profile'
         }
       }
@@ -120,7 +121,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose',
+          // Request longer token duration (Google's maximum is 1 hour)
+          // The refresh token will handle longer sessions
+          include_granted_scopes: 'true'
         }
       }
     });

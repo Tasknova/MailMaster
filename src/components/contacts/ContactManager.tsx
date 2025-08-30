@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, Users, Plus, FileText } from 'lucide-react';
+import { Upload, Users, Plus, FileText, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 interface ContactList {
   id: string;
@@ -46,6 +47,7 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
     last_name: '',
     custom_fields: {}
   });
+  const [isEmailValid, setIsEmailValid] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -119,8 +121,7 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
 
   const parseCsvData = () => {
     if (!csvData.trim()) {
-      toast({ title: "Please select a CSV file", variant: "destructive" });
-      return;
+      return; // Silently return if no data, don't show error
     }
 
     try {
@@ -177,10 +178,14 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
     if (!file) return;
 
     // Validate file type
-    if (!file.name.toLowerCase().endsWith('.csv')) {
+    const fileName = file.name.toLowerCase();
+    const isCsv = fileName.endsWith('.csv');
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+    
+    if (!isCsv && !isExcel) {
       toast({
         title: "Invalid file type",
-        description: "Please select a CSV file",
+        description: "Please select a CSV or Excel file (.csv, .xlsx, .xls)",
         variant: "destructive",
       });
       return;
@@ -190,34 +195,78 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "File too large",
-        description: "Please select a CSV file smaller than 5MB",
+        description: "Please select a file smaller than 5MB",
         variant: "destructive",
       });
       return;
     }
 
     setIsProcessingFile(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setCsvData(content);
-      setSelectedFileName(file.name);
-      
-      // Auto-parse the CSV after upload
-      setTimeout(() => {
-        parseCsvData();
+
+    if (isCsv) {
+      // Handle CSV file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setCsvData(content);
+        setSelectedFileName(file.name);
+        
+        // Auto-parse the CSV after upload
+        setTimeout(() => {
+          parseCsvData();
+          setIsProcessingFile(false);
+        }, 100);
+      };
+      reader.onerror = () => {
         setIsProcessingFile(false);
-      }, 100);
-    };
-    reader.onerror = () => {
-      setIsProcessingFile(false);
-      toast({
-        title: "Error reading file",
-        description: "Failed to read the CSV file",
-        variant: "destructive",
-      });
-    };
-    reader.readAsText(file);
+        toast({
+          title: "Error reading file",
+          description: "Failed to read the CSV file",
+          variant: "destructive",
+        });
+      };
+      reader.readAsText(file);
+    } else {
+      // Handle Excel file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          // Get the first sheet
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // Convert to CSV format
+          const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+          setCsvData(csvContent);
+          setSelectedFileName(file.name);
+          
+          // Auto-parse the converted CSV
+          setTimeout(() => {
+            parseCsvData();
+            setIsProcessingFile(false);
+          }, 100);
+        } catch (error) {
+          setIsProcessingFile(false);
+          toast({
+            title: "Error reading Excel file",
+            description: "Failed to process the Excel file",
+            variant: "destructive",
+          });
+        }
+      };
+      reader.onerror = () => {
+        setIsProcessingFile(false);
+        toast({
+          title: "Error reading file",
+          description: "Failed to read the Excel file",
+          variant: "destructive",
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const handleColumnSelection = (column: string, checked: boolean) => {
@@ -299,10 +348,14 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
             }
           });
 
-          // Only add if email is present and valid
-          if (contact.email && contact.email.trim() !== '') {
-            contacts.push(contact);
-          }
+                     // Only add if email is present and valid
+           if (contact.email && contact.email.trim() !== '') {
+             // Validate email format
+             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+             if (emailRegex.test(contact.email.trim())) {
+               contacts.push(contact);
+             }
+           }
         }
       }
 
@@ -315,29 +368,41 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
         return;
       }
 
-      // Insert contacts in batches
-      const batchSize = 100;
+      // Insert contacts one by one to handle duplicates gracefully
       let insertedCount = 0;
+      let skippedCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < contacts.length; i += batchSize) {
-        const batch = contacts.slice(i, i + batchSize);
-        
-        const { error } = await supabase
-          .from('contacts')
-          .insert(batch);
+      for (const contact of contacts) {
+        try {
+          // Try to insert the contact
+          const { error } = await supabase
+            .from('contacts')
+            .insert(contact);
 
-        if (error) {
-          console.error('Error inserting batch:', error);
-          errorCount += batch.length;
-        } else {
-          insertedCount += batch.length;
+          if (error) {
+            // Check if it's a duplicate key error
+            if (error.code === '23505' && error.message.includes('contacts_list_id_email_key')) {
+              // This is a duplicate contact, skip it
+              skippedCount++;
+              console.log(`Skipping duplicate contact: ${contact.email}`);
+            } else {
+              // This is a different error
+              console.error('Error inserting contact:', error);
+              errorCount++;
+            }
+          } else {
+            insertedCount++;
+          }
+        } catch (error) {
+          console.error('Error inserting contact:', error);
+          errorCount++;
         }
       }
 
       // Update contact list count
       const currentList = contactLists.find(l => l.id === selectedListId);
-      if (currentList) {
+      if (currentList && insertedCount > 0) {
         const { error: updateError } = await supabase
           .from('contact_lists')
           .update({ total_contacts: currentList.total_contacts + insertedCount })
@@ -349,15 +414,28 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
       }
 
       // Show results
-      if (errorCount === 0) {
+      let message = `Successfully uploaded ${insertedCount} contacts to the list.`;
+      if (skippedCount > 0) {
+        message += ` ${skippedCount} duplicate contacts were skipped.`;
+      }
+      if (errorCount > 0) {
+        message += ` ${errorCount} contacts failed to upload.`;
+      }
+
+      if (errorCount === 0 && skippedCount === 0) {
         toast({
           title: "Upload Successful!",
-          description: `Successfully uploaded ${insertedCount} contacts to the list.`,
+          description: message,
+        });
+      } else if (errorCount === 0) {
+        toast({
+          title: "Upload Completed",
+          description: message,
         });
       } else {
         toast({
           title: "Upload Completed with Issues",
-          description: `Uploaded ${insertedCount} contacts, ${errorCount} failed.`,
+          description: message,
           variant: "destructive",
         });
       }
@@ -399,6 +477,17 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newContact.email.trim())) {
+      toast({ 
+        title: "Invalid email format", 
+        description: "Please enter a valid email address (e.g., john@example.com)",
+        variant: "destructive" 
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('contacts')
@@ -435,6 +524,48 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
     }
   };
 
+  const deleteContactList = async (listId: string, listName: string, contactCount: number) => {
+    if (!confirm(`Are you sure you want to delete the contact list "${listName}"? This will also delete all ${contactCount} contacts in this list. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      // First delete all contacts in the list
+      const { error: contactsError } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('list_id', listId);
+
+      if (contactsError) throw contactsError;
+
+      // Then delete the contact list
+      const { error: listError } = await supabase
+        .from('contact_lists')
+        .delete()
+        .eq('id', listId);
+
+      if (listError) throw listError;
+
+      toast({ title: "Contact list deleted successfully!" });
+      fetchContactLists();
+    } catch (error) {
+      toast({
+        title: "Error deleting contact list",
+        description: error instanceof Error ? error.message : "Failed to delete contact list",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const validateEmail = (email: string) => {
+    if (!email.trim()) {
+      setIsEmailValid(true); // Don't show error for empty field
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setIsEmailValid(emailRegex.test(email.trim()));
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -465,7 +596,7 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
            </Button>
            <Button variant="outline" onClick={() => setShowUploadCsv(true)}>
              <Upload className="w-4 h-4 mr-2" />
-             Upload CSV
+             Upload File
            </Button>
            <Button variant="hero" onClick={() => setShowCreateList(true)}>
              <Plus className="w-4 h-4 mr-2" />
@@ -532,16 +663,26 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                  ))}
                </select>
              </div>
-             <div className="space-y-2">
-               <Label htmlFor="contact-email">Email *</Label>
-               <Input
-                 id="contact-email"
-                 type="email"
-                 value={newContact.email}
-                 onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                 placeholder="john@example.com"
-               />
-             </div>
+                           <div className="space-y-2">
+                <Label htmlFor="contact-email">Email *</Label>
+                <Input
+                  id="contact-email"
+                  type="email"
+                  value={newContact.email}
+                  onChange={(e) => {
+                    setNewContact({ ...newContact, email: e.target.value });
+                    validateEmail(e.target.value);
+                  }}
+                  onBlur={(e) => validateEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className={!isEmailValid && newContact.email.trim() ? 'border-red-500 focus:border-red-500' : ''}
+                />
+                {!isEmailValid && newContact.email.trim() && (
+                  <p className="text-sm text-red-500">
+                    Please enter a valid email address (e.g., john@example.com)
+                  </p>
+                )}
+              </div>
              <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                  <Label htmlFor="contact-first-name">First Name</Label>
@@ -562,21 +703,26 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                  />
                </div>
              </div>
-             <div className="flex gap-2">
-               <Button onClick={addContactManually}>Add Contact</Button>
-               <Button variant="outline" onClick={() => setShowAddContact(false)}>
-                 Cancel
-               </Button>
-             </div>
+                           <div className="flex gap-2">
+                <Button 
+                  onClick={addContactManually}
+                  disabled={!isEmailValid || !newContact.email.trim()}
+                >
+                  Add Contact
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddContact(false)}>
+                  Cancel
+                </Button>
+              </div>
            </CardContent>
          </Card>
        )}
 
-             {/* Upload CSV Form */}
+             {/* Upload File Form */}
        {showUploadCsv && !showColumnSelection && (
          <Card>
            <CardHeader>
-             <CardTitle>Upload Contacts from CSV</CardTitle>
+             <CardTitle>Upload Contacts from File</CardTitle>
            </CardHeader>
            <CardContent className="space-y-4">
              <div className="space-y-2">
@@ -596,15 +742,21 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                </select>
              </div>
              <div className="space-y-2">
-               <Label htmlFor="csv-file-upload">CSV File</Label>
+               <Label htmlFor="csv-file-upload">Contact File (CSV or Excel)</Label>
                <div className="space-y-2">
-                 <Input
-                   type="file"
-                   id="csv-file-upload"
-                   accept=".csv"
-                   onChange={handleFileUpload}
-                   className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                 />
+                 <div className="relative">
+                   <Input
+                     type="file"
+                     id="csv-file-upload"
+                     accept=".csv,.xlsx,.xls"
+                     onChange={handleFileUpload}
+                     className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                     style={{ paddingRight: '120px' }}
+                   />
+                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                     <span className="text-sm text-muted-foreground">Choose File</span>
+                   </div>
+                 </div>
                  {selectedFileName && (
                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -623,7 +775,11 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                  )}
                </div>
                <p className="text-xs text-muted-foreground">
-                 <strong>Required format:</strong> fname,lname,email (additional columns optional). Email column is mandatory.
+                 <strong>Supported formats:</strong> CSV (.csv), Excel (.xlsx, .xls)
+                 <br />
+                 <strong>Required:</strong> Email column (any column containing "email" in the name)
+                 <br />
+                 <strong>Optional:</strong> Any other columns (first name, last name, etc.)
                  <br />
                  <strong>File size limit:</strong> 5MB maximum
                </p>
@@ -654,7 +810,7 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
            <CardHeader>
              <CardTitle>Select Columns to Import</CardTitle>
              <p className="text-sm text-muted-foreground">
-               Choose up to 4 columns from your CSV file. <strong>Email column is required.</strong>
+               Choose up to 4 columns from your file. <strong>Email column is required.</strong>
              </p>
            </CardHeader>
            <CardContent className="space-y-4">
@@ -729,12 +885,12 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                  </div>
                )}
 
-               <div className="text-xs text-muted-foreground">
-                 <p>• <strong>Email column is required</strong> - CSV must contain an email column</p>
-                 <p>• <strong>Required format:</strong> fname,lname,email (additional columns optional)</p>
-                 <p>• Missing values will be set to null automatically</p>
-                 <p>• Other columns will be stored as custom fields</p>
-               </div>
+                               <div className="text-xs text-muted-foreground">
+                  <p>• <strong>Email column is required</strong> - Must select a column containing email addresses</p>
+                  <p>• <strong>Optional:</strong> Any other columns (first name, last name, etc.)</p>
+                  <p>• Missing values will be set to null automatically</p>
+                  <p>• All column data will be stored for maximum flexibility</p>
+                </div>
              </div>
 
              <div className="flex gap-2">
@@ -845,6 +1001,13 @@ const ContactManager = ({ onViewContacts, showCreateListOnMount = false, onShowC
                       }}
                     >
                       Edit List
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => deleteContactList(list.id, list.name, list.total_contacts)}
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
