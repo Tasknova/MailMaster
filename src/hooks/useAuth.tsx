@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signInWithGoogle = async () => {
-    // Use window.location.origin to get the current domain dynamically
+    // Use the current domain or fallback to localhost for development
     const redirectUrl = `${window.location.origin}/dashboard`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signUpWithGoogle = async () => {
-    // Use window.location.origin to get the current domain dynamically
+    // Use the current domain or fallback to localhost for development
     const redirectUrl = `${window.location.origin}/dashboard`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const configureGmail = async () => {
-    // Use window.location.origin to get the current domain dynamically
+    // Use the current domain or fallback to localhost for development
     const redirectUrl = `${window.location.origin}/gmail-callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
